@@ -100,7 +100,7 @@ def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
         access_token = token
     if base == None:
         base = base_url
-    html = markdown.markdown(markdown_body, ['Extra'])
+    html = markdown.markdown(markdown_body, ['extra'])
     return requests.put(base + 'api/v1/courses/{}'.format(course), 
                         {'access_token':access_token, 'course[syllabus_body]':html})
 
@@ -119,7 +119,7 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
         access_token = token
     if base == None:
         base = base_url
-    html = markdown.markdown(markdown_body, ['Extra'])
+    html = markdown.markdown(markdown_body, ['extra'])
     return requests.post(base + 'api/v1/courses/{}/discussion_topics'.format(course), 
                         {'access_token':access_token, 'title':title,
                          'message':html, 'is_announcement':'1'})
@@ -140,7 +140,7 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
         access_token = token
     if base == None:
         base = base_url
-    html = markdown.markdown(markdown_body, ['Extra'])
+    html = markdown.markdown(markdown_body, ['extra'])
     return requests.post(base + 'api/v1/courses/{}/pages'.format(course), 
                         {'access_token':access_token, 'wiki_page[title]':title,
                          'wiki_page[body]':html, 'wiki_page[published]':'1' if
