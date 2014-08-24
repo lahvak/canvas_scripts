@@ -110,8 +110,8 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
     Post an announcement to a given course
     Parameters:
         course: a course ID, int or string
-        title: the title of the anouncement
-        markdown_body: the body of syllabus in markdown
+        title: the title of the announcement
+        markdown_body: the body of the announcement in markdown
         access_token: access token
         base: base url of canvas server
     """
@@ -123,3 +123,25 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
     return requests.post(base + 'api/v1/courses/{}/discussion_topics'.format(course), 
                         {'access_token':access_token, 'title':title,
                          'message':html, 'is_announcement':'1'})
+
+def create_page_from_markdown(course, title, markdown_body, publised=True,
+                              access_token=None, base=None):
+    """
+    Creates a wiki page in a given course
+    Parameters:
+        course: a course ID, int or string
+        title: the title of the page
+        markdown_body: the body of page in markdown
+        published: if the page should be published
+        access_token: access token
+        base: base url of canvas server
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+    html = markdown.markdown(markdown_body)
+    return requests.post(base + 'api/v1/courses/{}/pages'.format(course), 
+                        {'access_token':access_token, 'wiki_page[title]':title,
+                         'wiki_page[body]':html, 'wiki_page[published]':'1' if
+                        published else '0'})
