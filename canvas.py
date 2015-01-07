@@ -54,6 +54,70 @@ def create_calendar_event (event_data, base=None):
         base = base_url
     return requests.post(base + 'api/v1/calendar_events.json', params = event_data)
 
+def list_calendar_events_between_dates (course, start_date, end_date, base=None,
+                                        access_token = None):
+    """Lists all events in a given course between two dates. There seems to be
+    some sort of limit on number of events returned, so it will not actually
+    return all of them.
+    Parameters:
+        course: course ID
+        start_date: start date in YYYY-MM-DD format
+        end_date: end date in YYYY-MM-DD format
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    event_data = {
+        'type': 'event',
+        'start_date': start_date,
+        'end_date': end_date,
+        'context_codes[]': 'course_{}'.format(course),
+        'access_token':access_token
+    }
+
+    return requests.get(base + 'api/v1/calendar_events.json', params = event_data)
+
+def list_calendar_events_all (course, base=None, access_token = None):
+    """Lists all events in a given course. There seems to be some sort of limit
+    on number of events returned, so it will not actually return all of them.
+    Parameters:
+        course: course ID
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    event_data = {
+        'type': 'event',
+        'all_events': True,
+        'context_codes[]': 'course_{}'.format(course),
+        'access_token':access_token
+    }
+
+    return requests.get(base + 'api/v1/calendar_events.json', params = event_data)
+
+def delete_event(id, base=None, access_token = None):
+    """Deletes an event, specified by 'id'. Returns the event."""
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    event_data = {
+        'cancel_reason': 'no reason',
+        'access_token':access_token
+    }
+
+    return requests.delete(base + 'api/v1/calendar_events/{}'.format(id), params = event_data)
+
+
 def class_span(start, length):
     """Returns class starting and ending time in isoformat.  To be used with
     `calendar_event_data`. Parameters:
