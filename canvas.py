@@ -209,3 +209,35 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
                         {'access_token':access_token, 'wiki_page[title]':title,
                          'wiki_page[body]':html, 'wiki_page[published]':'1' if
                         published else '0'})
+
+def create_assignment(course, name, markdown_description, points, due_at,
+                      group_id, submission_types="on_paper",
+                      access_token=None, base=None):
+    """
+    Creates a simple assignment in the given course.
+    Parameters:
+        course: a course ID, int or string
+        name: the name of the assignment
+        markdown_description: description of the assignment, in markdown
+        points: max number of points for the assignment
+        due_at: due date for the assignment, in YYYY-MM-DD
+        group_id: assignment group to place the assignment into
+        submission_types: how should it be submitted
+        access_token: access token
+        base: base url of canvas server
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+    html = markdown.markdown(markdown_description, ['extra'])
+
+    return requests.post(base + 'api/v1/courses/{}/assignments'.format(course), 
+                         {'access_token':access_token, 'assignment[name]':name,
+                          'assignment[description]':html,
+                          'assignment[submission_types]':submission_types,
+                          'assignment[points_possible]': points, 
+                          'assignment[due_at]':due_at,
+                          'assignment[group_id]': group_id,
+                          'assignment[published]':1
+                         })
