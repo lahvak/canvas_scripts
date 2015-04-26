@@ -241,3 +241,21 @@ def create_assignment(course, name, markdown_description, points, due_at,
                           'assignment[group_id]': group_id,
                           'assignment[published]':1
                          })
+
+def get_list_of_courses(access_token=None, base=None):
+    """
+    Returns a list of current user's courses, as a list of json course data,
+    one record for each course.
+    Parameters:
+        access_token: access token
+        base: base url of canvas server
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    rep = requests.get(base + 'api/v1/courses', params={'access_token':
+                                                        access_token})
+
+    return rep.json()
