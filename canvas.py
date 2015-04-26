@@ -48,6 +48,32 @@ def calendar_event_data (course, title, description, start_at, end_at, access_to
     }
     return event_data
 
+def get_all_pages(orig_url, orig_params):
+    """
+    Auxiliary function that uses the 'next' links returned from the server to
+    request additional pages and combine them together into one json response.
+    Parameters:
+        orig_url: the url for the original request
+        orig_params: a dict with the parameters for the original request (must
+                    contain access token)
+    Returns:
+        A combined list of json results returned in all pages.
+    Warning:
+        Does not handle failure in any way! Make sure you don't kill your pets
+        by accident.
+    """
+    url = orig_url
+    params = orig_params
+    json = []
+    while True:
+        resp = requests.get(url, params=params)
+        json += resp.json()
+        if 'next' not in resp.links:
+            return json
+        url = resp.links['next']['url']
+        params = {'access_token': params['access_token']}
+
+
 def create_calendar_event (event_data, base=None):
     "Post an event described by `event_data` dict to a calendar"
     if base == None:
@@ -56,15 +82,14 @@ def create_calendar_event (event_data, base=None):
 
 def list_calendar_events_between_dates (course, start_date, end_date, base=None,
                                         access_token = None):
-    """Lists all events in a given course between two dates. There seems to be
-    some sort of limit on number of events returned, so it will not actually
-    return all of them.
+    """Lists all events in a given course between two dates.
     Parameters:
         course: course ID
         start_date: start date in YYYY-MM-DD format
         end_date: end date in YYYY-MM-DD format
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
+    Returns a list of json descriptions of events.
     """
     if access_token == None:
         access_token = token
@@ -79,11 +104,10 @@ def list_calendar_events_between_dates (course, start_date, end_date, base=None,
         'access_token':access_token
     }
 
-    return requests.get(base + 'api/v1/calendar_events.json', params = event_data)
+    return get_all_pages(base + 'api/v1/calendar_events.json', event_data)
 
 def list_calendar_events_all (course, base=None, access_token = None):
-    """Lists all events in a given course. There seems to be some sort of limit
-    on number of events returned, so it will not actually return all of them.
+    """Lists all events in a given course.
     Parameters:
         course: course ID
         base: optional string, containing the base url of canvas server
@@ -101,7 +125,7 @@ def list_calendar_events_all (course, base=None, access_token = None):
         'access_token':access_token
     }
 
-    return requests.get(base + 'api/v1/calendar_events.json', params = event_data)
+    return get_all_pages(base + 'api/v1/calendar_events.json', event_data)
 
 def delete_event(id, base=None, access_token = None):
     """Deletes an event, specified by 'id'. Returns the event."""
@@ -255,7 +279,7 @@ def get_list_of_courses(access_token=None, base=None):
     if base == None:
         base = base_url
 
-    rep = requests.get(base + 'api/v1/courses', params={'access_token':
-                                                        access_token})
+    courses = get_all_pages(base + 'api/v1/courses', {'access_token':
+                                                      access_token})
 
-    return rep.json()
+    return courses
