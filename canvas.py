@@ -266,6 +266,37 @@ def create_assignment(course, name, markdown_description, points, due_at,
                           'assignment[published]':1
                          })
 
+def create_redirect_tool(course, text, url, default=True, access_token=None, base=None):
+    """
+    Create a redirect tool for course navigation.
+    Parameters:
+        course: the course id
+        text: the text that will be displayed in the navigation
+        url: the redirection url
+        default: should the tool be enabled by default
+        access_token: access token
+        base: base url of canvas server
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    return requests.post(base + 'api/v1/courses/{}/external_tools'.format(course),
+                         {'access_token':access_token,
+                          'name':'Redirect to ' + text,
+                          'privacy_level':'Anonymous',
+                          'consumer_key':'N/A',
+                          'shared_secret':'hjkl',
+                          'text':text,
+                          'not_selectable':True,
+                          'course_navigation[url]':url,
+                          'course_navigation[enabled]':True,
+                          'course_navigation[text]':text,
+                          'course_navigation[default]':default,
+                          'description':"Redirects to " + url
+                         })
+
 def get_list_of_courses(access_token=None, base=None):
     """
     Returns a list of current user's courses, as a list of json course data,
