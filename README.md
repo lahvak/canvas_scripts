@@ -25,7 +25,7 @@ your scripts. If the token is in `~/.canvas/access_token`, you can do this:
     
     students = canvas.get_students(courseid)
 
-    print("Student,ID,Section,\n,Points Possible,,,")
+    print("Student,ID,Section,\nPoints Possible,,,")
     for stud in students:
         print('"{sortable_name}",{id},,'.format(**stud))
 
