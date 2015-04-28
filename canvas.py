@@ -314,3 +314,24 @@ def get_list_of_courses(access_token=None, base=None):
                                                       access_token})
 
     return courses
+
+
+def get_students(course, base=None, access_token=None):
+    """Lists all students in a given course.
+    Parameters:
+        course: course ID
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a list of dicts, one for each student
+    """
+    if access_token == None:
+        access_token = token
+    if base == None:
+        base = base_url
+
+    data = {
+        'enrollment_type':'student',
+        'access_token':access_token
+    }
+
+    return get_all_pages(base + 'api/v1/courses/{}/users'.format(course), data)
