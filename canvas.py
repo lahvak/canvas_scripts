@@ -350,23 +350,22 @@ def create_appointment_group(course_list, title, description, location,
     """
 
     return contact_server(requests.post, "/api/v1/appointment_groups",
-                          {
-                              'appointment_group[context_codes][]':
-                              ['course_{}'.format(id) for id in course_list],
-                              'appointment_group[title]':title,
-                              'appointment_group[description]': description,
-                              'appointment_group[location_name]':
-                              location['name'],
-                              'appointment_group[new_appointments][1][]':
-                              time_slots,
-                              'appointment_group[participants_per_appointment]':
-                              max_part,
-                              'appointment_group[max_appointments_per_participant]':
-                              max_per_part,
-                              'appointment_group[min_appointments_per_participant]':
-                              min_per_part,
-                              'appointment_group[participant_visibility]':
-                              'private' if private else 'protected',
-                              'appointment_group[publish]':publish
-                          },
+                          dict([
+                              ('appointment_group[context_codes][]',
+                               ['course_{}'.format(id) for id in course_list]),
+                              ('appointment_group[title]',title),
+                              ('appointment_group[description]', description),
+                              ('appointment_group[location_name]', location),
+                              ('appointment_group[participants_per_appointment]',
+                               max_part),
+                              ('appointment_group[max_appointments_per_participant]',
+                               max_per_part),
+                              ('appointment_group[min_appointments_per_participant]',
+                               min_per_part),
+                              ('appointment_group[participant_visibility]',
+                               'private' if private else 'protected'),
+                              ('appointment_group[publish]',publish)] +
+                              [('appointment_group[new_appointments][{}][]'.format(i+1),
+                                slot) for i,slot in enumerate(time_slots)]
+                          ),
                           base, access_token)
