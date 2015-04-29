@@ -1,9 +1,9 @@
 """
-A module for posting stuff to Instructure Canvas
+A module for interacting with Instructure Canvas
 
 Global parameters (most can also be changed on individual function calls):
     base_url: string, containing the base url of canvas server
-    token: string, containing the user access token.  Must be set!
+    token: string, containing the user access token.
     this_year: current year, for making class schedules
 """
 import requests
@@ -25,6 +25,7 @@ def read_access_token(file='~/.canvas/access_token'):
     except:
         print("Could not read access token")
 
+# The main purpose for this is that we cannot splat things into a dict :(
 def calendar_event_data(course, title, description, start_at, end_at):
     """
     Creates a dict with parameters for calendar event data to be passed to
@@ -84,14 +85,12 @@ def contact_server(contact_function, location, data, base=None,
 
 def create_calendar_event (event_data, base=None, access_token=None):
     "Post an event described by `event_data` dict to a calendar"
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
-    return requests.post(base + 'api/v1/calendar_events.json', params = event_data)
 
-def list_calendar_events_between_dates (course, start_date, end_date, base=None,
-                                        access_token = None):
+    return contact_server(requests.post, 'api/v1/calendar_events.json', 
+                          event_data, base, access_token)
+
+def list_calendar_events_between_dates(course, start_date, end_date, base=None,
+                                       access_token=None):
     """Lists all events in a given course between two dates.
     Parameters:
         course: course ID
@@ -101,55 +100,42 @@ def list_calendar_events_between_dates (course, start_date, end_date, base=None,
         access_token: optional access token, if different from global one
     Returns a list of json descriptions of events.
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    event_data = {
-        'type': 'event',
-        'start_date': start_date,
-        'end_date': end_date,
-        'context_codes[]': 'course_{}'.format(course),
-        'access_token':access_token
-    }
+    return contact_server(get_all_pages, 'api/v1/calendar_events.json',
+                          {
+                              'type': 'event',
+                              'start_date': start_date,
+                              'end_date': end_date,
+                              'context_codes[]': 'course_{}'.format(course),
+                          },
+                          base, access_token)
 
-    return get_all_pages(base + 'api/v1/calendar_events.json', params=event_data)
-
-def list_calendar_events_all (course, base=None, access_token = None):
+def list_calendar_events_all(course, base=None, access_token=None):
     """Lists all events in a given course.
     Parameters:
         course: course ID
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    event_data = {
-        'type': 'event',
-        'all_events': True,
-        'context_codes[]': 'course_{}'.format(course),
-        'access_token':access_token
-    }
+    return contact_server(get_all_pages, 'api/v1/calendar_events.json',
+                          {
+                              'type': 'event',
+                              'all_events': True,
+                              'context_codes[]': 'course_{}'.format(course),
+                          }
+                          base, access_token)
 
-    return get_all_pages(base + 'api/v1/calendar_events.json', params=event_data)
 
-def delete_event(id, base=None, access_token = None):
+def delete_event(id, base=None, access_token=None):
     """Deletes an event, specified by 'id'. Returns the event."""
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    event_data = {
-        'cancel_reason': 'no reason',
-        'access_token':access_token
-    }
-
-    return requests.delete(base + 'api/v1/calendar_events/{}'.format(id), params = event_data)
+    return contact_server(requests.delete, 'api/v1/calendar_events/{}'.format(id),
+                          {
+                              'cancel_reason': 'no reason',
+                              'access_token':access_token
+                          }
+                          base, access_token)
 
 
 def class_span(start, length):
@@ -164,7 +150,8 @@ def firstclass(month, day, hour, minute, year=this_year):
     "A convenience function creating an arrow object for the first class in the semester"
     return arrow.Arrow(year, month, day, hour, minute, 0, 0, 'local')
 
-def create_events_from_list(course, list, start, length):
+def create_events_from_list(course, event_list, start, length, base=None,
+                           access_token=None):
     """
     Creates a series of events for a MW or TR class. Parameters:
         course: a course id, string or int
@@ -181,6 +168,7 @@ def create_events_from_list(course, list, start, length):
             create_calendar_event(
                 calendar_event_data(course, event[0], event[1], 
                                     *class_span(classtime,length))
+                base, access_token)
             )
         classtime = classtime.replace(days=2 if i%2 == 0 else 5)
 
@@ -194,13 +182,11 @@ def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
-    html = markdown.markdown(markdown_body, ['extra'])
-    return requests.put(base + 'api/v1/courses/{}'.format(course), 
-                        {'access_token':access_token, 'course[syllabus_body]':html})
+
+    return contact_server(requests.put, 'api/v1/courses/{}'.format(course),
+                          {'course[syllabus_body]':
+                           markdown.markdown(markdown_body, ['extra'])},
+                          base, access_token)
 
 def post_announcement_from_markdown(course, title, markdown_body, access_token=None,
                                     base=None):
@@ -213,14 +199,17 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
-    html = markdown.markdown(markdown_body, ['extra'])
-    return requests.post(base + 'api/v1/courses/{}/discussion_topics'.format(course), 
-                        {'access_token':access_token, 'title':title,
-                         'message':html, 'is_announcement':'1'})
+
+    html = 
+    return contact_server(requests.post, 
+                          'api/v1/courses/{}/discussion_topics'.format(course), 
+                          {
+                              'title':title,
+                              'message':
+                                  markdown.markdown(markdown_body, ['extra']),
+                              'is_announcement':'1'
+                          },
+                         base, access_token)
 
 def create_page_from_markdown(course, title, markdown_body, published=True,
                               access_token=None, base=None):
@@ -234,15 +223,16 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
-    html = markdown.markdown(markdown_body, ['extra'])
-    return requests.post(base + 'api/v1/courses/{}/pages'.format(course), 
-                        {'access_token':access_token, 'wiki_page[title]':title,
-                         'wiki_page[body]':html, 'wiki_page[published]':'1' if
-                        published else '0'})
+
+    return contact_server(requests.post, 'api/v1/courses/{}/pages'.format(course), 
+                          {
+                              'wiki_page[title]':title,
+                              'wiki_page[body]':
+                                  markdown.markdown(markdown_body, 
+                                                    ['extra']),
+                              'wiki_page[published]':'1' if published else '0'
+                          },
+                          base, access_token)
 
 def create_assignment(course, name, markdown_description, points, due_at,
                       group_id, submission_types="on_paper",
@@ -260,23 +250,25 @@ def create_assignment(course, name, markdown_description, points, due_at,
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
-    html = markdown.markdown(markdown_description, ['extra'])
 
-    return requests.post(base + 'api/v1/courses/{}/assignments'.format(course), 
-                         {'access_token':access_token, 'assignment[name]':name,
-                          'assignment[description]':html,
-                          'assignment[submission_types]':submission_types,
-                          'assignment[points_possible]': points, 
-                          'assignment[due_at]':due_at,
-                          'assignment[group_id]': group_id,
-                          'assignment[published]':1
-                         })
 
-def create_redirect_tool(course, text, url, default=True, access_token=None, base=None):
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/assignments'.format(course), 
+                          {
+                              'assignment[name]':name,
+                              'assignment[description]':
+                                  markdown.markdown(markdown_description,
+                                                    ['extra']),
+                              'assignment[submission_types]':submission_types,
+                              'assignment[points_possible]': points, 
+                              'assignment[due_at]':due_at,
+                              'assignment[group_id]': group_id,
+                              'assignment[published]':1
+                          },
+                          base, access_token)
+
+def create_redirect_tool(course, text, url, default=True, access_token=None, 
+                         base=None):
     """
     Create a redirect tool for course navigation.
     Parameters:
@@ -287,25 +279,23 @@ def create_redirect_tool(course, text, url, default=True, access_token=None, bas
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    return requests.post(base + 'api/v1/courses/{}/external_tools'.format(course),
-                         {'access_token':access_token,
-                          'name':'Redirect to ' + text,
-                          'privacy_level':'Anonymous',
-                          'consumer_key':'N/A',
-                          'shared_secret':'hjkl',
-                          'text':text,
-                          'not_selectable':True,
-                          'course_navigation[url]':url,
-                          'course_navigation[enabled]':True,
-                          'course_navigation[text]':text,
-                          'course_navigation[default]':default,
-                          'description':"Redirects to " + url
-                         })
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/external_tools'.format(course),
+                          {
+                              'name':'Redirect to ' + text,
+                              'privacy_level':'Anonymous',
+                              'consumer_key':'N/A',
+                              'shared_secret':'hjkl',
+                              'text':text,
+                              'not_selectable':True,
+                              'course_navigation[url]':url,
+                              'course_navigation[enabled]':True,
+                              'course_navigation[text]':text,
+                              'course_navigation[default]':default,
+                              'description':"Redirects to " + url
+                          }
+                         base, access_token)
 
 def get_list_of_courses(access_token=None, base=None):
     """
@@ -315,15 +305,9 @@ def get_list_of_courses(access_token=None, base=None):
         access_token: access token
         base: base url of canvas server
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    courses = get_all_pages(base + 'api/v1/courses', params={'access_token':
-                                                      access_token})
-
-    return courses
+    return contact_server(get_all_pages, 'api/v1/courses', {},
+                          base, access_token)
 
 
 def get_students(course, base=None, access_token=None):
@@ -334,14 +318,8 @@ def get_students(course, base=None, access_token=None):
         access_token: optional access token, if different from global one
     Returns a list of dicts, one for each student
     """
-    if access_token == None:
-        access_token = token
-    if base == None:
-        base = base_url
 
-    data = {
-        'enrollment_type':'student',
-        'access_token':access_token
-    }
-
-    return get_all_pages(base + 'api/v1/courses/{}/users'.format(course), data)
+    return contact_server(get_all_pages,
+                          'api/v1/courses/{}/users'.format(course),
+                          {'enrollment_type':'student'},
+                          base, access_token)
