@@ -20,7 +20,7 @@ def read_access_token(file='~/.canvas/access_token'):
     "Read access token if available"
     global token
     try:
-        with open(expanduser(file),'r') as f:
+        with open(expanduser(file), 'r') as f:
             token = f.read().rstrip('\n')
     except:
         print("Could not read access token")
@@ -73,7 +73,7 @@ def contact_server(contact_function, location, data, base=None,
                    access_token=None):
     """
     Abstracting a server request. Builds a url from base and location, adds
-    access_token if given, or default token, to data dict, and calls 
+    access_token if given, or default token, to data dict, and calls
     contact_function with the url and data.  Returns the result of the
     contact_function.
     """
@@ -83,10 +83,10 @@ def contact_server(contact_function, location, data, base=None,
     return contact_function((base_url if base is None else base) + location,
                             params)
 
-def create_calendar_event (event_data, base=None, access_token=None):
+def create_calendar_event(event_data, base=None, access_token=None):
     "Post an event described by `event_data` dict to a calendar"
 
-    return contact_server(requests.post, 'api/v1/calendar_events.json', 
+    return contact_server(requests.post, 'api/v1/calendar_events.json',
                           event_data, base, access_token)
 
 def list_calendar_events_between_dates(course, start_date, end_date, base=None,
@@ -123,18 +123,19 @@ def list_calendar_events_all(course, base=None, access_token=None):
                               'type': 'event',
                               'all_events': True,
                               'context_codes[]': 'course_{}'.format(course),
-                          }
+                          },
                           base, access_token)
 
 
-def delete_event(id, base=None, access_token=None):
-    """Deletes an event, specified by 'id'. Returns the event."""
+def delete_event(event_id, base=None, access_token=None):
+    """Deletes an event, specified by 'event_id'. Returns the event."""
 
-    return contact_server(requests.delete, 'api/v1/calendar_events/{}'.format(id),
+    return contact_server(requests.delete,
+                          'api/v1/calendar_events/{}'.format(event_id),
                           {
                               'cancel_reason': 'no reason',
                               'access_token':access_token
-                          }
+                          },
                           base, access_token)
 
 
@@ -151,31 +152,30 @@ def firstclass(month, day, hour, minute, year=this_year):
     return arrow.Arrow(year, month, day, hour, minute, 0, 0, 'local')
 
 def create_events_from_list(course, event_list, start, length, base=None,
-                           access_token=None):
+                            access_token=None):
     """
     Creates a series of events for a MW or TR class. Parameters:
         course: a course id, string or int
         list: a list of events.  A list of pairs, the first item in each is a
-            title, the second is a description. An empty string for title will 
+            title, the second is a description. An empty string for title will
             skip that day.
         start: an arrow object describing the starting time of the first class.
             Must be Monday or Tuesday!
         length: int, length of class in minutes
     """
     classtime = start
-    for i,event in enumerate(list):
+    for i, event in enumerate(event_list):
         if event[0] != "":
             create_calendar_event(
-                calendar_event_data(course, event[0], event[1], 
-                                    *class_span(classtime,length))
+                calendar_event_data(course, event[0], event[1],
+                                    *class_span(classtime, length)),
                 base, access_token)
-            )
         classtime = classtime.replace(days=2 if i%2 == 0 else 5)
 
 def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
                                   base=None):
     """
-    Uploads syllabus body to a given course. 
+    Uploads syllabus body to a given course.
     Parameters:
         course: a course ID, int or string
         markdown_body: the body of syllabus in markdown
@@ -200,16 +200,15 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
         base: base url of canvas server
     """
 
-    html = 
-    return contact_server(requests.post, 
-                          'api/v1/courses/{}/discussion_topics'.format(course), 
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/discussion_topics'.format(course),
                           {
                               'title':title,
                               'message':
                                   markdown.markdown(markdown_body, ['extra']),
                               'is_announcement':'1'
                           },
-                         base, access_token)
+                          base, access_token)
 
 def create_page_from_markdown(course, title, markdown_body, published=True,
                               access_token=None, base=None):
@@ -224,11 +223,12 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
         base: base url of canvas server
     """
 
-    return contact_server(requests.post, 'api/v1/courses/{}/pages'.format(course), 
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/pages'.format(course),
                           {
                               'wiki_page[title]':title,
                               'wiki_page[body]':
-                                  markdown.markdown(markdown_body, 
+                                  markdown.markdown(markdown_body,
                                                     ['extra']),
                               'wiki_page[published]':'1' if published else '0'
                           },
@@ -253,21 +253,21 @@ def create_assignment(course, name, markdown_description, points, due_at,
 
 
     return contact_server(requests.post,
-                          'api/v1/courses/{}/assignments'.format(course), 
+                          'api/v1/courses/{}/assignments'.format(course),
                           {
                               'assignment[name]':name,
                               'assignment[description]':
                                   markdown.markdown(markdown_description,
                                                     ['extra']),
                               'assignment[submission_types]':submission_types,
-                              'assignment[points_possible]': points, 
+                              'assignment[points_possible]': points,
                               'assignment[due_at]':due_at,
                               'assignment[group_id]': group_id,
                               'assignment[published]':1
                           },
                           base, access_token)
 
-def create_redirect_tool(course, text, url, default=True, access_token=None, 
+def create_redirect_tool(course, text, url, default=True, access_token=None,
                          base=None):
     """
     Create a redirect tool for course navigation.
@@ -294,8 +294,8 @@ def create_redirect_tool(course, text, url, default=True, access_token=None,
                               'course_navigation[text]':text,
                               'course_navigation[default]':default,
                               'description':"Redirects to " + url
-                          }
-                         base, access_token)
+                          },
+                          base, access_token)
 
 def get_list_of_courses(access_token=None, base=None):
     """
