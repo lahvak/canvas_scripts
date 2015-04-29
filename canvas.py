@@ -323,3 +323,50 @@ def get_students(course, base=None, access_token=None):
                           'api/v1/courses/{}/users'.format(course),
                           {'enrollment_type':'student'},
                           base, access_token)
+
+
+def create_appointment_group(course_list, title, description, location,
+                             time_slots, publish=False, max_part=None,
+                             min_per_part=None, max_per_part=1, private=True,
+                             base=None, access_token=None):
+    """
+    Create an appointment group.
+    Parameters:
+        course_list: a list of course ids.  Students in those courses
+            will be allowed to sign up
+        title: a title of the group
+        description: a description
+        location: a string, location of the appointment
+        time_slots: a list of pairs of times - (start, end) for each
+            slot
+        publish: publish right away or wait (can't be unpublished)
+        max_part: maximum number of participants per appointment (default
+            no limit)
+        min_per_part: minimum number of appointment a participant must sign
+            up for (default no minimum)
+        max_per_part: maximum number of appointment a participant must sign
+            up for (default unknown, we set it to 1)
+        private: participants cannot see each others names
+    """
+
+    return contact_server(requests.post, "/api/v1/appointment_groups",
+                          {
+                              'appointment_group[context_codes][]':
+                              ['course_{}'.format(id) for id in course_list],
+                              'appointment_group[title]':title,
+                              'appointment_group[description]': description,
+                              'appointment_group[location_name]':
+                              location['name'],
+                              'appointment_group[new_appointments][1][]':
+                              time_slots,
+                              'appointment_group[participants_per_appointment]':
+                              max_part,
+                              'appointment_group[max_appointments_per_participant]':
+                              max_per_part,
+                              'appointment_group[min_appointments_per_participant]':
+                              min_per_part,
+                              'appointment_group[participant_visibility]':
+                              'private' if private else 'protected',
+                              'appointment_group[publish]':publish
+                          },
+                          base, access_token)
