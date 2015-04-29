@@ -25,7 +25,7 @@ def read_access_token(file='~/.canvas/access_token'):
     except:
         print("Could not read access token")
 
-def calendar_event_data (course, title, description, start_at, end_at, access_token=None):
+def calendar_event_data(course, title, description, start_at, end_at):
     """
     Creates a dict with parameters for calendar event data to be passed to
     `create_calendar_event`. Parameters:
@@ -34,17 +34,13 @@ def calendar_event_data (course, title, description, start_at, end_at, access_to
         description: string, detailed event description
         start_at: starting time, in YYYY-MM-DDTHH:MMZZ format
         end_at: ending time, in YYYY-MM-DDTHH:MMZZ format
-        access_token: optional access token, if different from global one
     """
-    if access_token == None:
-        access_token = token
     event_data = {
         'calendar_event[context_code]':'course_{}'.format(course),
         'calendar_event[title]':title,
         'calendar_event[description]':description,
         'calendar_event[start_at]':start_at,
         'calendar_event[end_at]':end_at,
-        'access_token':access_token
     }
     return event_data
 
@@ -86,8 +82,10 @@ def contact_server(contact_function, location, data, base=None,
     return contact_function((base_url if base is None else base) + location,
                             params)
 
-def create_calendar_event (event_data, base=None):
+def create_calendar_event (event_data, base=None, access_token=None):
     "Post an event described by `event_data` dict to a calendar"
+    if access_token == None:
+        access_token = token
     if base == None:
         base = base_url
     return requests.post(base + 'api/v1/calendar_events.json', params = event_data)
