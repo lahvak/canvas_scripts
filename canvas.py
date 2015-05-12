@@ -244,7 +244,7 @@ def create_assignment(course, name, markdown_description, points, due_at,
         name: the name of the assignment
         markdown_description: description of the assignment, in markdown
         points: max number of points for the assignment
-        due_at: due date for the assignment, in YYYY-MM-DD
+        due_at: due date for the assignment, in YYYY-MM-DDTHH:MM:SS
         group_id: assignment group to place the assignment into
         submission_types: how should it be submitted
         access_token: access token
