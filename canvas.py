@@ -276,7 +276,7 @@ def create_assignment(course, name, markdown_description, points, due_at,
                               'assignment[submission_types]':submission_types,
                               'assignment[points_possible]': points,
                               'assignment[due_at]':due_at,
-                              'assignment[group_id]': group_id,
+                              'assignment[assignment_group_id]': group_id,
                               'assignment[published]':1
                           },
                           base, access_token)
