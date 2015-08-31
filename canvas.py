@@ -234,6 +234,20 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
                           },
                           base, access_token)
 
+def get_assignment_groups(course, access_token=None, base=None):
+    """
+    Gets a list of all assignment groups for a course.
+    Parameters:
+        course: a course ID, int or string
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    return contact_server(get_all_pages,
+                          'api/v1/courses/{}/assignment_groups'.format(course),
+                          {'include[]':'assignments'},
+                          base, access_token)
+
 def create_assignment(course, name, markdown_description, points, due_at,
                       group_id, submission_types="on_paper",
                       access_token=None, base=None):
