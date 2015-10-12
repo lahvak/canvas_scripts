@@ -69,7 +69,7 @@ def get_all_pages(orig_url, params={}):
         url = resp.links['next']['url']
         params = {'access_token': params['access_token']}
 
-def contact_server(contact_function, location, data, base=None,
+def contact_server(contact_function, location, data=None, base=None,
                    access_token=None):
     """
     Abstracting a server request. Builds a url from base and location, adds
@@ -77,7 +77,10 @@ def contact_server(contact_function, location, data, base=None,
     contact_function with the url and data.  Returns the result of the
     contact_function.
     """
-    params = data.copy() #prevent them from being clobbered
+    if data is None:
+        params = dict()
+    else:
+        params = data.copy() #prevent them from being clobbered
     params['access_token'] = token if access_token is None else access_token
 
     return contact_function((base_url if base is None else base) + location,
