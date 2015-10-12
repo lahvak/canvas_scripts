@@ -409,10 +409,10 @@ def get_groups(course, category=None, base=None, access_token=None):
 
     Parameters:
         course: course ID
-        category: optional string or int, an IT og a group category.
+        category: optional string or int, an ID of a group category.
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
-    Returns a list of dicts, one for each category
+    Returns a list of dicts, one for each group.
     """
 
     if category is None:
