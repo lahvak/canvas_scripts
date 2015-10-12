@@ -401,3 +401,26 @@ def get_group_categories(course, base=None, access_token=None):
                           'api/v1/courses/{}/group_categories'.format(course),
                           base, access_token)
 
+
+def get_groups(course, category=None, base=None, access_token=None):
+    """
+    Lists groups in a course.  If category ID is given, only list the groups
+    in this category.  Note that in that case, course id is ignored.
+
+    Parameters:
+        course: course ID
+        category: optional string or int, an IT og a group category.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a list of dicts, one for each category
+    """
+
+    if category is None:
+        api = 'api/v1/courses/{}/groups'.format(course)
+    else:
+        api = 'api/v1/group_categories/{}/groups'.format(category)
+
+    return contact_server(get_all_pages,
+                          api,
+                          base, access_token)
+
