@@ -386,3 +386,18 @@ def create_appointment_group(course_list, title, description, location,
                                 slot) for i,slot in enumerate(time_slots)]
                           ),
                           base, access_token)
+
+
+def get_group_categories(course, base=None, access_token=None):
+    """Lists all group categories in a given course.
+    Parameters:
+        course: course ID
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a list of dicts, one for each category
+    """
+
+    return contact_server(get_all_pages,
+                          'api/v1/courses/{}/group_categories'.format(course),
+                          base, access_token)
+
