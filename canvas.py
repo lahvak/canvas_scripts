@@ -381,9 +381,9 @@ def create_appointment_group(course_list, title, description, location,
                                min_per_part),
                               ('appointment_group[participant_visibility]',
                                'private' if private else 'protected'),
-                              ('appointment_group[publish]',publish)] +
+                              ('appointment_group[publish]', publish)] +
                               [('appointment_group[new_appointments][{}][]'.format(i+1),
-                                slot) for i,slot in enumerate(time_slots)]
+                                slot) for i, slot in enumerate(time_slots)]
                           ),
                           base, access_token)
 
@@ -462,8 +462,8 @@ def get_assignments(course, search=None, bucket=None, base=None,
     return contact_server(get_all_pages,
                           "/api/v1/courses/{}/assignments".format(course),
                           None if (search is None and bucket is None) else
-                          dict(([] if search is None else [('search_term',search)]) +
-                               ([] if bucket is None else [('bucket',bucket)])),
+                          dict(([] if search is None else [('search_term', search)]) +
+                               ([] if bucket is None else [('bucket', bucket)])),
                           base, access_token)
 
 def get_submissions(course, assignment=None, student=None, assignments=None,
