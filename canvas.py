@@ -424,3 +424,46 @@ def get_groups(course, category=None, base=None, access_token=None):
                           api,
                           base, access_token)
 
+def get_submissions(course, assignment=None, student=None, assignments=None,
+                    students=None, grouped=True, base=None, access_token=None):
+    """
+    Get assignment(s) submission(s) from the course.
+
+    Parameters:
+        course: course ID
+        assignment: an assignment ID, if a single assignment is to be obtained
+        student: a student id, if a single students' assignments should be
+            obtained
+        assignments: a list of assignment ids.  If both assignment and
+            assignments are None, obtain all assignments
+        students: a list of student ids. If both student and students are None,
+            obtain assignments for all students
+        grouped: If multiple assignments for multiple students are to be
+            listed, should they be grouped by students?  Otherwise ignored.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns a list of assignments.
+    """
+
+    data = None
+    if student is None:
+        if assignment is None:
+            data = dict(
+                [('student_ids[]',
+                  "all" if students is None else ','.join(str(id) for id
+                                                         in students))] +
+                ([] if assignments is None else ['assignments_ids[]',
+                                                 ','.join(str(id) for id in
+                                                        assignments)]) +
+                [('grouped', 1 if grouped else 0)])
+            api = "/api/v1/courses/{}/students/submissions".format(course)
+        else:
+            api = "/api/v1/courses/{}/assignments/{}/submissions".format(course,
+                                                                   assignment)
+    else:
+        api = "/api/v1/courses/{}/assignments/{}/submissions/{}".format(course,
+                                                                        assignment,
+                                                                        student)
+
+    return contact_server(get_all_pages, api, data, base, access_token)
