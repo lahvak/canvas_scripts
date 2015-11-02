@@ -424,6 +424,23 @@ def get_groups(course, category=None, base=None, access_token=None):
                           api,
                           base, access_token)
 
+def get_group_members(group, base=None, access_token=None):
+    """
+    Get a list of all members of a group"
+
+    Parameters:
+        group: group ID
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        a list of users
+    """
+
+    return contact_server(get_all_pages,
+                          "/api/v1/groups/{}/users".format(group),
+                          base, access_token)
+
 def get_assignments(course, search=None, bucket=None, base=None,
                     access_token=None):
     """
