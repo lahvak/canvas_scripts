@@ -424,6 +424,31 @@ def get_groups(course, category=None, base=None, access_token=None):
                           api,
                           base, access_token)
 
+def get_assignments(course, search=None, bucket=None, base=None,
+                    access_token=None):
+    """
+    Get a list of assignments for a course.
+
+    Parameters:
+        course: course ID
+        search: an optional search term for assignment names
+        bucket: optional, if included, only return certain assignments
+            depending on due date and submission status. Valid buckets are “past”,
+            “overdue”, “undated”, “ungraded”, “upcoming”, and “future”.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        list of assignments
+    """
+
+    return contact_server(get_all_pages,
+                          "/api/v1/courses/{}/assignments".format(course),
+                          None if (search is None and bucket is None) else
+                          dict(([] if search is None else [('search_term',search)]) +
+                               ([] if bucket is None else [('bucket',bucket)])),
+                          base, access_token)
+
 def get_submissions(course, assignment=None, student=None, assignments=None,
                     students=None, grouped=True, base=None, access_token=None):
     """
@@ -443,7 +468,7 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
 
-    Returns a list of assignments.
+    Returns a list of submissions.
     """
 
     data = None
