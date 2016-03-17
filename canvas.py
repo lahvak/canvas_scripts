@@ -213,6 +213,28 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
                           },
                           base, access_token)
 
+def post_group_announcement_from_markdown(group, title, markdown_body, access_token=None,
+                                    base=None):
+    """
+    Post an announcement to a given group
+    Parameters:
+        group: a group ID, int or string
+        title: the title of the announcement
+        markdown_body: the body of the announcement in markdown
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    return contact_server(requests.post,
+                          'api/v1/groups/{}/discussion_topics'.format(group),
+                          {
+                              'title':title,
+                              'message':
+                                  markdown.markdown(markdown_body, ['extra']),
+                              'is_announcement':'1'
+                          },
+                          base, access_token)
+
 def create_page_from_markdown(course, title, markdown_body, published=True,
                               access_token=None, base=None):
     """
