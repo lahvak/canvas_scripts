@@ -84,7 +84,7 @@ def contact_server(contact_function, location, data=None, base=None,
     params['access_token'] = token if access_token is None else access_token
 
     return contact_function((base_url if base is None else base) + location,
-                            params)
+                            params=params)
 
 def create_calendar_event(event_data, base=None, access_token=None):
     "Post an event described by `event_data` dict to a calendar"
