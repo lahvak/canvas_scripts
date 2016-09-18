@@ -9,7 +9,7 @@ Global parameters (most can also be changed on individual function calls):
 import requests
 import arrow
 import markdown
-from os.path import expanduser
+from os.path import expanduser, getsize
 
 base_url = "https://svsu.instructure.com/"
 token = 'An invalid token.  Redefine with your own'
@@ -335,6 +335,43 @@ def create_redirect_tool(course, text, url, default=True, access_token=None,
                               'description':"Redirects to " + url
                           },
                           base, access_token)
+
+
+def upload_file_to_course(course, filename, upload_path, content_type=None,
+                          overwrite=False, access_token=None, base=None):
+    """
+    Upload a file to the course 'files'.
+    Parameters:
+        course: the course id
+        filename: the local path to the file.  The file must exist, and not be
+            huge
+        upload_path: the remote directory the file goes to.  It will be created
+            if it does not exist
+        content_type: mailcap style content type.  Will be inferred from the
+            file extension if unspecified
+        overwrite: if True, overwrite existing file.  Otherwise upload file
+            under a modified name
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    response = contact_server(requests.post,
+                              'api/v1/courses/{}/files'.format(course),
+                              data=dict(
+                                  [
+                                      ('name', filename),
+                                      ('size', getsize(filename)),
+                                      ('parent_folder_path', upload_path),
+                                      ('on_duplicate', 'overwrite' if overwrite else 'rename')
+                                  ] + ([('content_type', content_type)] if content_type is not None else [])))
+    response.raise_for_status()
+
+    upload_url = response.json()["upload_url"]
+    upload_params = response.json()["upload_params"]
+
+    with open(filename, 'rb') as file:
+        return requests.post(upload_url, data=upload_params, files={'file':file})
+
 
 def get_list_of_courses(access_token=None, base=None):
     """
