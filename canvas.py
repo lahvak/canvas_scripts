@@ -9,7 +9,7 @@ Global parameters (most can also be changed on individual function calls):
 import requests
 import arrow
 import markdown
-from os.path import expanduser, getsize
+from os.path import expanduser, getsize, basename
 
 base_url = "https://svsu.instructure.com/"
 token = 'An invalid token.  Redefine with your own'
@@ -337,16 +337,19 @@ def create_redirect_tool(course, text, url, default=True, access_token=None,
                           base, access_token)
 
 
-def upload_file_to_course(course, filename, upload_path, content_type=None,
-                          overwrite=False, access_token=None, base=None):
+def upload_file_to_course(course, local_file, upload_path, remote_name=None,
+                          content_type=None, overwrite=False,
+                          access_token=None, base=None):
     """
     Upload a file to the course 'files'.
     Parameters:
         course: the course id
-        filename: the local path to the file.  The file must exist, and not be
+        local_file: the local path to the file.  The file must exist, and not be
             huge
         upload_path: the remote directory the file goes to.  It will be created
             if it does not exist
+        remote_name: the file name to use on the server. When unspecified, it
+            will be extracted from `local_file`
         content_type: mailcap style content type.  Will be inferred from the
             file extension if unspecified
         overwrite: if True, overwrite existing file.  Otherwise upload file
@@ -359,17 +362,20 @@ def upload_file_to_course(course, filename, upload_path, content_type=None,
                               'api/v1/courses/{}/files'.format(course),
                               data=dict(
                                   [
-                                      ('name', filename),
-                                      ('size', getsize(filename)),
+                                      ('name', remote_name if remote_name is not None
+                                       else basename(local_file)),
+                                      ('size', getsize(local_file)),
                                       ('parent_folder_path', upload_path),
-                                      ('on_duplicate', 'overwrite' if overwrite else 'rename')
-                                  ] + ([('content_type', content_type)] if content_type is not None else [])))
+                                      ('on_duplicate', 'overwrite' if overwrite
+                                       else 'rename')
+                                  ] + ([('content_type', content_type)]
+                                       if content_type is not None else [])))
     response.raise_for_status()
 
     upload_url = response.json()["upload_url"]
     upload_params = response.json()["upload_params"]
 
-    with open(filename, 'rb') as file:
+    with open(local_file, 'rb') as file:
         return requests.post(upload_url, data=upload_params, files={'file':file})
 
 
