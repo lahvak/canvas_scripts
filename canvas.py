@@ -259,6 +259,34 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
                           },
                           base, access_token)
 
+
+# The following function was provided by Mark A. Lilly (marqpdx):
+
+def update_page_from_markdown(course, title, markdown_body, url, published=True,
+                              access_token=None, base=None):
+    """
+    updates a wiki page in a given course
+    Parameters:
+        course: a course ID, int or string
+        title: the title of the page
+        markdown_body: the body of page in markdown
+        url: the url of this page in the current course
+        published: if the page should be published
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    return contact_server(requests.put,
+                          'api/v1/courses/{}/pages/{}'.format(course, url),
+                          {
+                              'wiki_page[title]':title,
+                              'wiki_page[body]':
+                                  markdown.markdown(markdown_body,
+                                                    ['extra']),
+                              'wiki_page[published]':'1' if published else '0'
+                          },
+                          base, access_token)
+
 def get_assignment_groups(course, access_token=None, base=None):
     """
     Gets a list of all assignment groups for a course.
