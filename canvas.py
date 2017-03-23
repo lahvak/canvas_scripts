@@ -435,6 +435,83 @@ def get_students(course, base=None, access_token=None):
                           base, access_token)
 
 
+def find_user_by_login_id(login_id, base=None, access_token=None):
+    """Search for a user with a given sis_login_id, if found, return user
+    profile.
+    Parameters:
+        login_id: user's sis_login_id
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a request result
+    """
+
+    return contact_server(requests.get,
+                          "/api/v1/users/sis_login_id:{}/profile".format(login_id),
+                          base, access_token)
+
+
+def enroll_user_by_login_id(course, login_id, base=None, access_token=None):
+    """Enrolls a user with a given sis_login_id, if found. Returns user
+    profile.
+    Parameters:
+        course: course ID
+        login_id: user's sis_login_id
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a request result
+    """
+
+    resp = find_user_by_login_id(login_id, base, access_token)
+
+    if resp.status_code != 200:
+        return resp
+
+    json = resp.json()
+
+    if "login_id" in json and json["login_id"] == login_id and "id" in json:
+        id = resp.json()['id']
+    else:
+        return resp
+
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/enrollments'.format(course),
+                          {'enrollment[user_id]':id,
+                           'enrollment[enrollment_state]':'active'},
+                          base, access_token)
+
+
+def get_enrollments(course, base=None, access_token=None):
+    """Lists all enrollments in a given course.
+    Parameters:
+        course: course ID
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a list of dicts, one for each enrollment
+    """
+
+    return contact_server(get_all_pages,
+                          'api/v1/courses/{}/enrollments'.format(course),
+                          {},
+                          base, access_token)
+
+def enrollment_stop(course, user_id, task="conclude", base=None, access_token=None):
+    """Modifies an enrollment of given user in given course.
+    Parameters:
+        course: course ID
+        user_id: user id (numerical Canvas id)
+        task: how should the enrollment change?
+                "conclude", "delete", "deactivate"
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    Returns a request result
+    """
+
+    return contact_server(requests.delete,
+                          'api/v1/courses/{}/enrollments/{}'.format(course, user_id),
+                          {"task":task},
+                          base, access_token)
+
+
 def create_appointment_group(course_list, title, description, location,
                              time_slots, publish=False, max_part=None,
                              min_per_part=None, max_per_part=1, private=True,
