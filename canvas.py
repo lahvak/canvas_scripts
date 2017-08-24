@@ -400,7 +400,7 @@ def upload_file_to_course(course, local_file, upload_path, remote_name=None,
                                        else 'rename')
                                   ] + ([('content_type', content_type)]
                                        if content_type is not None else [])),
-                              base, access_token)
+                              base=base, access_token=access_token)
     response.raise_for_status()
 
     upload_url = response.json()["upload_url"]
