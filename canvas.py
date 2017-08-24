@@ -6,10 +6,10 @@ Global parameters (most can also be changed on individual function calls):
     token: string, containing the user access token.
     this_year: current year, for making class schedules
 """
+from os.path import expanduser, getsize, basename
 import requests
 import arrow
 import markdown
-from os.path import expanduser, getsize, basename
 
 base_url = "https://svsu.instructure.com/"
 token = 'An invalid token.  Redefine with your own'
