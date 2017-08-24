@@ -666,18 +666,65 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
             data = dict(
                 [('student_ids[]',
                   "all" if students is None else ','.join(str(id) for id
-                                                         in students))] +
+                                                          in students))] +
                 ([] if assignments is None else ['assignments_ids[]',
                                                  ','.join(str(id) for id in
-                                                        assignments)]) +
+                                                          assignments)]) +
                 [('grouped', 1 if grouped else 0)])
             api = "/api/v1/courses/{}/students/submissions".format(course)
         else:
             api = "/api/v1/courses/{}/assignments/{}/submissions".format(course,
-                                                                   assignment)
+                                                                         assignment)
     else:
         api = "/api/v1/courses/{}/assignments/{}/submissions/{}".format(course,
                                                                         assignment,
                                                                         student)
 
     return contact_server(get_all_pages, api, data, base, access_token)
+
+def get_favorite_courses(base=None, access_token=None):
+    """
+    Get current users list of favorite courses.
+
+    Parameters:
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+
+    return contact_server(get_all_pages,
+                          "/api/v1/users/self/favorites/courses",
+                          base, access_token)
+
+def add_course_to_favorites(course, base=None, access_token=None):
+    """
+    Add a course to the current users list of favorite courses.  If the course
+    already is a favorite, nothing happens.
+
+    Parameters:
+        course: a course id, string or integer
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns a favorite.
+    """
+
+    return contact_server(requests.post,
+                          "/api/v1/users/self/favorites/courses/{}".format(course),
+                          base, access_token)
+
+def remove_course_from_favorites(course, base=None, access_token=None):
+    """
+    Removes a course from the current users list of favorite courses.
+
+    Parameters:
+        course: a course id, string or integer
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns a favorite.
+    """
+
+    return contact_server(requests.delete,
+                          "/api/v1/users/self/favorites/courses/{}".format(course),
+                          base, access_token)
+
