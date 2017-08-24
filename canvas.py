@@ -45,7 +45,7 @@ def calendar_event_data(course, title, description, start_at, end_at):
     }
     return event_data
 
-def get_all_pages(orig_url, params={}):
+def get_all_pages(orig_url, params=None):
     """
     Auxiliary function that uses the 'next' links returned from the server to
     request additional pages and combine them together into one json response.
@@ -61,6 +61,8 @@ def get_all_pages(orig_url, params={}):
     """
     url = orig_url
     json = []
+    if params is None:
+        params = {}
     while True:
         resp = requests.get(url, params=params)
         json += resp.json()
