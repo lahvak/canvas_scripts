@@ -216,7 +216,7 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
                           base, access_token)
 
 def post_group_announcement_from_markdown(group, title, markdown_body, access_token=None,
-                                    base=None):
+                                          base=None):
     """
     Post an announcement to a given group
     Parameters:
@@ -399,7 +399,8 @@ def upload_file_to_course(course, local_file, upload_path, remote_name=None,
                                       ('on_duplicate', 'overwrite' if overwrite
                                        else 'rename')
                                   ] + ([('content_type', content_type)]
-                                       if content_type is not None else [])))
+                                       if content_type is not None else [])),
+                              base, access_token)
     response.raise_for_status()
 
     upload_url = response.json()["upload_url"]
@@ -542,7 +543,7 @@ def create_appointment_group(course_list, title, description, location,
                           dict([
                               ('appointment_group[context_codes][]',
                                ['course_{}'.format(id) for id in course_list]),
-                              ('appointment_group[title]',title),
+                              ('appointment_group[title]', title),
                               ('appointment_group[description]', description),
                               ('appointment_group[location_name]', location),
                               ('appointment_group[participants_per_appointment]',
