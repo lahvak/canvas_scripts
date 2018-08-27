@@ -78,12 +78,17 @@ def contact_server(contact_function, location, data=None, base=None,
     access_token if given, or default token, to data dict, and calls
     contact_function with the url and data.  Returns the result of the
     contact_function.
+
+    Also accepts a list of pairs as data.
     """
     if data is None:
         params = dict()
     else:
         params = data.copy() #prevent them from being clobbered
-    params['access_token'] = token if access_token is None else access_token
+    if isinstance(params, dict):
+        params['access_token'] = token if access_token is None else access_token
+    else:
+        params += [('access_token', token if access_token is None else access_token)]
 
     return contact_function((base_url if base is None else base) + location,
                             params=params)
@@ -785,4 +790,36 @@ def update_course_tab(course, tab, position, hidden=False,
     return contact_server(requests.put,
                           "/api/v1/courses/{}/tabs/{}".format(course, tab),
                           {'hidden':hidden, 'position':position},
+                          base, access_token)
+
+def create_grading_standard(course, name, grades, cutoffs,
+                            base=None, access_token=None):
+    """
+    Creates a new grading standard for a course.
+
+    Parameters:
+        course: the course id
+        name: title of the standard
+        grades: list of strings, names of the grades, in descending order
+        cutoffs: list of numbers, cut offs for the grades.  Should have one less
+            item than `grades`.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+
+    if len(cutoffs) == len(grades) - 1:
+        cutoffs += [0]
+
+    # Canvas uses repeated header names and requires them in a specific order,
+    # name, value, name, value.  I couldn't find a way to do that with
+    # dictionaries, so now `contact_server` accepts lists of pairs as well.
+
+    params = [('title', name)]
+    for d in zip(grades, cutoffs):
+        params += [('grading_scheme_entry[][name]', d[0]),
+                   ('grading_scheme_entry[][value]', d[1])]
+
+    return contact_server(requests.post,
+                          "/api/v1/courses/{}/grading_standards".format(course),
+                          params,
                           base, access_token)
