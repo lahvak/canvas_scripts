@@ -336,6 +336,25 @@ def create_assignment(course, name, markdown_description, points, due_at,
                           },
                           base, access_token)
 
+
+def course_settings_set(course, settings, access_token=None, base=None):
+    """
+    Set settings in a course.
+    Parameters:
+        course: the course id
+        settings: a dict with course settings to change.  Keys should be the parts inside
+            the square brackets of the parameter names for the "Update a Course"
+            API request
+    """
+
+    return contact_server(requests.put,
+                          'api/v1/courses/{}'.format(course),
+                          {
+                              "course[{}]".format(k):v for k, v in settings.items()
+                          },
+                          base, access_token)
+
+
 def create_redirect_tool(course, text, url, default=True, access_token=None,
                          base=None):
     """
