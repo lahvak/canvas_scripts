@@ -751,3 +751,38 @@ def remove_course_from_favorites(course, base=None, access_token=None):
                           "/api/v1/users/self/favorites/courses/{}".format(course),
                           base, access_token)
 
+
+def get_course_tabs(course, base=None, access_token=None):
+    """
+    Lists the navigation tabs for the course.  Include external tools.
+
+    Parameters:
+        course: the course id
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+
+    return contact_server(get_all_pages,
+                          "/api/v1/courses/{}/tabs".format(course),
+                          {'include[]':'external'},
+                          base, access_token)
+
+
+def update_course_tab(course, tab, position, hidden=False,
+                      base=None, access_token=None):
+    """
+    Update (move, hide) a course navigation tab.
+
+    Parameters:
+        course: the course id
+        tab: the tab id
+        position: 1 based position of the tab
+        hidden: should the tab be hidden
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+
+    return contact_server(requests.put,
+                          "/api/v1/courses/{}/tabs/{}".format(course, tab),
+                          {'hidden':hidden, 'position':position},
+                          base, access_token)
