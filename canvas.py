@@ -355,7 +355,7 @@ def course_settings_set(course, settings, access_token=None, base=None):
                           base, access_token)
 
 
-def create_redirect_tool(course, text, url, default=True, access_token=None,
+def create_redirect_tool(course, text, url, new_tab=False, default=True, access_token=None,
                          base=None):
     """
     Create a redirect tool for course navigation.
@@ -363,6 +363,7 @@ def create_redirect_tool(course, text, url, default=True, access_token=None,
         course: the course id
         text: the text that will be displayed in the navigation
         url: the redirection url
+        new_tab: should it open in a new tab?
         default: should the tool be enabled by default
         access_token: access token
         base: base url of canvas server
@@ -375,9 +376,11 @@ def create_redirect_tool(course, text, url, default=True, access_token=None,
                               'privacy_level':'Anonymous',
                               'consumer_key':'N/A',
                               'shared_secret':'hjkl',
+                              'url':'https://www.edu-apps.org/redirect',
                               'text':text,
+                              'custom_fields[url]':url,
+                              'custom_fields[new_tab]':(1 if new_tab else 0),
                               'not_selectable':True,
-                              'course_navigation[url]':url,
                               'course_navigation[enabled]':True,
                               'course_navigation[text]':text,
                               'course_navigation[default]':default,
