@@ -823,3 +823,35 @@ def create_grading_standard(course, name, grades, cutoffs,
                           "/api/v1/courses/{}/grading_standards".format(course),
                           params,
                           base, access_token)
+
+## External tools API.  The whole external tools stuff is complicated and messy,
+## this here just creates a simple external tool in a course, with minimal
+## options.
+
+def create_external_tool(course, name, privacy_level, key, secret,
+                         url=None, domain=None, base=None, access_token=None):
+    """
+    Creates a new external tool for a course.
+
+    Parameters:
+        course: the course id
+        name: title of the tool
+        privacy_level: "anonymous", "name_only", "public"
+        key: a "consumer key" for the tool
+        secret: a "shared secret" for the tool
+        url: the url to match links against
+        domain: the domain to match links against
+            (exactly one of url and domain must be set.  If both are set, url
+             is used. If none is set, strange things may happen.)
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+    """
+
+    return contact_server(requests.post,
+                          "/api/v1/courses/{}/external_tools".format(course),
+                          dict([("name", name),
+                                ("privacy_level", privacy_level),
+                                ("consumer_key", key),
+                                ("shared_secret", secret),
+                                ("domain", domain) if url is None else ("url", url)]),
+                          base, access_token)
