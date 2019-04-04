@@ -195,7 +195,7 @@ def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
 
     return contact_server(requests.put, 'api/v1/courses/{}'.format(course),
                           {'course[syllabus_body]':
-                           markdown.markdown(markdown_body, ['extra'])},
+                           markdown.markdown(markdown_body, extensions=['extra'])},
                           base, access_token)
 
 def post_announcement_from_markdown(course, title, markdown_body, access_token=None,
@@ -215,7 +215,7 @@ def post_announcement_from_markdown(course, title, markdown_body, access_token=N
                           {
                               'title':title,
                               'message':
-                                  markdown.markdown(markdown_body, ['extra']),
+                                  markdown.markdown(markdown_body, extensions=['extra']),
                               'is_announcement':'1'
                           },
                           base, access_token)
@@ -237,7 +237,7 @@ def post_group_announcement_from_markdown(group, title, markdown_body, access_to
                           {
                               'title':title,
                               'message':
-                                  markdown.markdown(markdown_body, ['extra']),
+                                  markdown.markdown(markdown_body, extensions=['extra']),
                               'is_announcement':'1'
                           },
                           base, access_token)
@@ -261,7 +261,7 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
                               'wiki_page[title]':title,
                               'wiki_page[body]':
                                   markdown.markdown(markdown_body,
-                                                    ['extra']),
+                                                    extensions=['extra']),
                               'wiki_page[published]':'1' if published else '0'
                           },
                           base, access_token)
@@ -289,7 +289,7 @@ def update_page_from_markdown(course, title, markdown_body, url, published=True,
                               'wiki_page[title]':title,
                               'wiki_page[body]':
                                   markdown.markdown(markdown_body,
-                                                    ['extra']),
+                                                    extensions=['extra']),
                               'wiki_page[published]':'1' if published else '0'
                           },
                           base, access_token)
@@ -332,7 +332,7 @@ def create_assignment(course, name, markdown_description, points, due_at,
                               'assignment[name]':name,
                               'assignment[description]':
                                   markdown.markdown(markdown_description,
-                                                    ['extra']),
+                                                    extensions=['extra']),
                               'assignment[submission_types]':submission_types,
                               'assignment[points_possible]': points,
                               'assignment[due_at]':due_at,
