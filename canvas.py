@@ -711,6 +711,25 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
     return contact_server(get_all_pages, api, data, base, access_token)
 
 
+def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
+    """
+    Get assignment(s) submission(s) from the course.
+
+    Parameters:
+        course: the course ID
+        quiz_id: the ID of the quiz
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns a list of submissions for the quiz
+    """
+
+    return contact_server(requests.get,
+                          "/api/v1/courses/{}/quizzes/{}/submissions".format(
+                              course, quiz_id),
+                          base, access_token)
+
+
 def get_quiz_submission_answers(submission_id, base=None, access_token=None):
     """
     Get assignment(s) submission(s) from the course.
