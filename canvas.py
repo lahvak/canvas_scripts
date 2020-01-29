@@ -710,6 +710,24 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
 
     return contact_server(get_all_pages, api, data, base, access_token)
 
+
+def get_quiz_submission_answers(submission_id, base=None, access_token=None):
+    """
+    Get assignment(s) submission(s) from the course.
+
+    Parameters:
+        submission_id: the ID of the individual submission from which to download
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns a list of answers for the particular submission.
+    """
+
+    return contact_server(requests.get,
+                          "/api/v1/quiz_submissions/{}/questions".format(submission_id),
+                          base, access_token)
+
+
 def get_favorite_courses(base=None, access_token=None):
     """
     Get current users list of favorite courses.
