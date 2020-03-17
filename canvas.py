@@ -861,6 +861,138 @@ def create_grading_standard(course, name, grades, cutoffs,
                           params,
                           base, access_token)
 
+## Modules:
+
+def list_modules(course, items=False, details=False, search=None, student=None,
+                 base=None, access_token=None):
+    """
+    Lists modules in a course.
+
+    Parameters:
+        course: the course id
+        items: a boolean, whether to include lists of items for each modules.
+            Canvas may decide to ignore this if there are too many items.
+        details: a boolean, whether to include additional details about items.
+            Required items to be true.
+        search: search string to limit modules to those that match.
+        student: include completion info for this student id.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        List of modules
+    """
+
+    if items:
+        includes = [("include", ["items"] +
+                     ([] if not details else ["content_details"]))]
+    else:
+        includes = []
+
+    return contact_server(get_all_pages,
+                          "/api/v1/courses/{}/modules".format(course),
+                          None if (not items and not search and not student)
+                          else dict(includes +
+                                    ([] if search is None
+                                        else [('search_term', search)]) +
+                                    ([] if student is None
+                                        else [('student_id', student)])),
+                          base, access_token)
+
+
+def show_module(course, module, items=False, details=False, student=None,
+                 base=None, access_token=None):
+    """
+    Give information about a single module
+
+    Parameters:
+        course: the course id
+        module: module id
+        items: a boolean, whether to include lists of items for each modules.
+            Canvas may decide to ignore this if there are too many items.
+        details: a boolean, whether to include additional details about items.
+            Required items to be true.
+        student: include completion info for this student id.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        Response with module info, when successful
+    """
+
+    if items:
+        includes = [("include", ["items"] +
+                     ([] if not details else ["content_details"]))]
+    else:
+        includes = []
+
+    return contact_server(requests.get,
+                          "/api/v1/courses/{}/modules/{}".format(course, module),
+                          None if (not items and not student)
+                          else dict(includes +
+                                    ([] if student is None
+                                        else [('student_id', student)])),
+                          base, access_token)
+
+
+def create_module(course, name, position, unlock_at=None, sequential=False,
+                  prereqs=None, publish_final_grade=False,
+                  base=None, access_token=None):
+    """
+    Creates a new module for the course.
+
+    Parameters:
+        course: the course id
+        name: the name of the module
+        position: an integer position of the module in the course, 1 based
+        unlock_at: date to unlock the module, hopefully optional
+        sequential: Do the items have to be unlocked in order
+        prereqs: list of ids of modules that must be done before this one is
+            unlocked
+        publish_final_grade: no idea, make it False
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        a response with the module, if successful
+    """
+
+    return contact_server(requests.post,
+                          "/api/v1/courses/{}/modules".format(course),
+                          dict([("module[name]", name),
+                                ("module[position]", position),
+                                ("module[require_sequential_progress]",
+                                 sequential),
+                                ("module[publish_final_grade]",
+                                 publish_final_grade)] +
+                               [] if unlock_at is None
+                                  else [("module[unlock_at]", unlock_at)] +
+                               [] if prereqs is None
+                                  else [("module[prerequisite_module_ids]",
+                                         prereqs)]
+                               ),
+                          base, access_token)
+
+
+def delete_module(course, module, base=None, access_token=None):
+    """
+    Delete a module.
+
+    Parameters:
+        course: the course id
+        module: module id
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        Response with module info, when successful
+    """
+
+    return contact_server(requests.delete,
+                          "/api/v1/courses/{}/modules/{}".format(course, module),
+                          None, base, access_token)
+
+
 ## External tools API.  The whole external tools stuff is complicated and messy,
 ## this here just creates a simple external tool in a course, with minimal
 ## options.
