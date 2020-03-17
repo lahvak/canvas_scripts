@@ -965,11 +965,11 @@ def create_module(course, name, position, unlock_at=None, sequential=False,
                                  sequential),
                                 ("module[publish_final_grade]",
                                  publish_final_grade)] +
-                               [] if unlock_at is None
-                                  else [("module[unlock_at]", unlock_at)] +
-                               [] if prereqs is None
+                                ([] if unlock_at is None
+                                  else [("module[unlock_at]", unlock_at)]) +
+                                ([] if prereqs is None
                                   else [("module[prerequisite_module_ids]",
-                                         prereqs)]
+                                         prereqs)])
                                ),
                           base, access_token)
 
@@ -991,6 +991,141 @@ def delete_module(course, module, base=None, access_token=None):
     return contact_server(requests.delete,
                           "/api/v1/courses/{}/modules/{}".format(course, module),
                           None, base, access_token)
+
+
+## Module items
+
+def list_module_items(course, module, details=False, search=None, student=None,
+                      base=None, access_token=None):
+    """
+    Lists modules in a course.
+
+    Parameters:
+        course: the course id
+        module: the module id
+        details: a boolean, whether to include additional details about items.
+        search: search string to limit modules to those that match.
+        student: include completion info for this student id.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        List of items
+    """
+
+    return contact_server(get_all_pages,
+                          "/api/v1/courses/{}/modules/{}/items".format(course, module),
+                          None if (not details and not search and not student)
+                          else dict(([] if details is None
+                                        else [('include', ["content_details"])]) +
+                                    ([] if search is None
+                                        else [('search_term', search)]) +
+                                    ([] if student is None
+                                        else [('student_id', student)])),
+                          base, access_token)
+
+
+def show_module_item(course, module, item, details=False, student=None,
+                     base=None, access_token=None):
+    """
+    Give information about a single item
+
+    Parameters:
+        course: the course id
+        module: module id
+        item: item id
+        details: a boolean, whether to include additional details about the item.
+        student: include completion info for this student id.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        Response with item info, when successful
+    """
+
+    return contact_server(requests.get,
+                          "/api/v1/courses/{}/modules/{}/items/{}".format(course,
+                                                                          module,
+                                                                          item),
+                          None if (not details and not student)
+                               else dict(([] if details is None
+                                        else [('include', ["content_details"])]) +
+                                    ([] if student is None
+                                        else [('student_id', student)])),
+                          base, access_token)
+
+
+def create_module_item(course, module, title, position, itemtype, indent=0,
+                       content=None, page_url=None, external_url=None,
+                       new_tab=True, base=None, access_token=None):
+    """
+    Creates a new item in the module.
+
+    Parameters:
+        course: the course id
+        module: module id
+        title: title of the item
+        position: an integer position of the item in the module, 1 based
+        itemtype: type of item.  One of "File", "Page", "Discussion",
+            "Assignment", "Quiz", "SubHeader", "ExternalUrl", "ExternalTool"
+        indent: indent amount for the item
+        content: content id for "File", "Discussion", "Assignment", "Quiz" or
+            "ExternalTool"
+        page_url: page suffix for "Page" (whatever that means)
+        external_url: url for "ExternalUrl"
+        new_tab: should "ExternalTool" open in a new tab
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Note that completion requirements are not implemented at the moment.
+
+    Returns:
+        a response with the item, if successful
+    """
+
+    # Some combinations are required while other are ignored.  Do not sort the
+    # mess right now and trust that caller knows what they are doing.
+
+    return contact_server(requests.post,
+                          "/api/v1/courses/{}/modules/{}/items".format(course,
+                                                                       module),
+                          dict([("module_item[title]", title),
+                                ("module_item[type]", itemtype),
+                                ("module_item[position]", position),
+                                ("module_item[indent]", indent)] +
+                                ([] if content is None
+                                  else [("module_item[content_id]", content)]) +
+                                ([] if page_url is None
+                                  else [("module_item[page_url]", page_url)]) +
+                                ([] if external_url is None
+                                  else [("module_item[external_url]", external_url)]) +
+                                ([] if new_tab is None
+                                  else [("module_item[new_tab]", new_tab)])
+                               ),
+                          base, access_token)
+
+
+def delete_module_item(course, module, item, base=None, access_token=None):
+    """
+    Delete a module item.
+
+    Parameters:
+        course: the course id
+        module: module id
+        item: item id
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        Response with item info, when successful
+    """
+
+    return contact_server(requests.delete,
+                          "/api/v1/courses/{}/modules/{}/items/{}".format(course,
+                                                                          module,
+                                                                          item),
+                          None, base, access_token)
+
 
 
 ## External tools API.  The whole external tools stuff is complicated and messy,
