@@ -1,4 +1,5 @@
 # canvas_scripts
+
 Some python scripts for the Canvas learning management system
 
 The Canvas course management system by Instructure has a RESTful API that allows
@@ -31,3 +32,5 @@ your scripts. If the token is in `~/.canvas/access_token`, you can do this:
 
 to get a csv roster of your course that you can use to upload grades to Canvas
 gradebook.
+
+You can find more examples at the [lahvak/canvas_utils](https://github.com/lahvak/canvas_utils) repo.
