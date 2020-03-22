@@ -310,6 +310,9 @@ def get_assignment_groups(course, access_token=None, base=None):
 
 def create_assignment(course, name, markdown_description, points, due_at,
                       group_id, submission_types="on_paper",
+                      allowed_extensions=None, peer_reviews=False,
+                      auto_peer_reviews=False, ext_tool_url = None,
+                      ext_tool_new_tab = False,
                       access_token=None, base=None):
     """
     Creates a simple assignment in the given course.
@@ -320,25 +323,49 @@ def create_assignment(course, name, markdown_description, points, due_at,
         points: max number of points for the assignment
         due_at: due date for the assignment, in YYYY-MM-DDTHH:MM:SS
         group_id: assignment group to place the assignment into
-        submission_types: how should it be submitted
+        submission_types: how should it be submitted. Options are
+            "online_quiz", "none", "on_paper", "discussion_topic", "external_tool",
+            "online_upload", "online_text_entry", "online_url", "media_recording"
+        allowed_extensions: if submission_types contains "online_upload", list
+            of allowed file extensions
+        peer_reviews: should the assignment be peer reviwed
+        auto_peer_reviews: assign reviewers automatically
+        ext_tool_url: url of external tool, is submission_types contains
+            "external_tool".
+        ext_tool_new_tab: Boolean, should external tool open in a new tab.
         access_token: access token
         base: base url of canvas server
     """
 
+    #The Canvas API documentation is wrong or at least misleading, submitting a
+    #hash for external_tool_assignment_tag causes internal server error. The
+    #fields have to he sent separately.
 
     return contact_server(requests.post,
                           'api/v1/courses/{}/assignments'.format(course),
-                          {
-                              'assignment[name]':name,
-                              'assignment[description]':
+                          dict([
+                              ('assignment[name]', name),
+                              ('assignment[description]',
                                   markdown.markdown(markdown_description,
-                                                    extensions=['extra']),
-                              'assignment[submission_types]':submission_types,
-                              'assignment[points_possible]': points,
-                              'assignment[due_at]':due_at,
-                              'assignment[assignment_group_id]': group_id,
-                              'assignment[published]':1
-                          },
+                                                    extensions=['extra'])),
+                              ('assignment[submission_types]', submission_types),
+                              ('assignment[points_possible]',  points),
+                              ('assignment[due_at]', due_at),
+                              ('assignment[assignment_group_id]',  group_id),
+                              ('assignment[published]', 1),
+                              ('assignment[peer_reviews]', peer_reviews),
+                              ('assignment[automatic_peer_rewiews]',
+                                auto_peer_reviews)
+                          ] +
+                              ([] if allowed_extensions is None
+                                else [('assignment[allowed_extensions]',
+                                      allowed_extensions)]) +
+                              ([] if ext_tool_url is None
+                               else [('assignment[external_tool_tag_attributes][url]',
+                                      ext_tool_url),
+                                     ('assignment[external_tool_tag_attributes][new_tab]',
+                                      ext_tool_new_tab)])
+                          ),
                           base, access_token)
 
 
