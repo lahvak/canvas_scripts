@@ -1186,3 +1186,108 @@ def create_external_tool(course, name, privacy_level, key, secret,
                                 ("shared_secret", secret),
                                 ("domain", domain) if url is None else ("url", url)]),
                           base, access_token)
+
+## Rubrics.  Rubrics in Canvas are a mess, and I do not understand them, but what's below
+## seems to work.  It uses a dict describing a rubric that looks like this:
+## rubric = {
+##     'title': 'A string',
+##     'description': 'Anozer string',
+##     'criteria': [
+##         {
+##             'description': "A string",
+##             'long_description': "A longer string",
+##             'points': 10,
+##             'use_range': True,
+##             'ratings': [
+##                 {
+##                     'description': "Blah blah",
+##                     'points': 0
+##                 },
+##                 {
+##                     'description': "Bloh bloh",
+##                     'points': 10
+##                 }
+##             ]
+##         },
+##         {
+##             'description': "A string 2",
+##             'long_description': "A longer string 2",
+##             'points': 5,
+##             'use_range': True,
+##             'ratings': [
+##                 {
+##                     'description': "Blah blah",
+##                     'points': 0
+##                 },
+##                 {
+##                     'description': "Blih blih",
+##                     'points': 3
+##                 },
+##                 {
+##                     'description': "Bloh bloh",
+##                     'points': 5
+##                 }
+##             ]
+##         }
+##     ]
+## }
+
+
+def rubric_to_data(assignment, rubric, comments=True):
+    """
+    Translate a dict with rubric description to data to send to server.
+
+    Parameters:
+        assignment: an assignment ID to associate the rubric with
+        rubric: a dict with rubric data.
+        comments: whether to use free form comments when grading
+
+    Returns:
+        a dict with rubric data to send to server
+    """
+
+    data = {
+        'rubric_association[association_id]': assignment,
+        'rubric_association[association_type]': 'Assignment',
+        'rubric_association[use_for_grading]': True,
+        'rubric_association[purpose]': 'grading',
+        'rubric[free_form_criterion_comments]': comments,
+        'rubric[title]': rubric['title'],
+        'rubric[description]': rubric['description']
+    }
+
+    for i, criterion in enumerate(rubric['criteria']):
+        data["rubric[criteria][{}][description]".format(i)] = criterion['description']
+        data['rubric[criteria][{}][long_description]'.format(i)] = criterion['long_description']
+        data['rubric[criteria][{}][points]'.format(i)] = criterion['points']
+        data['rubric[criteria][{}][criterion_use_range]'.format(i)] = criterion['use_range']
+        for j, rating in enumerate(criterion['ratings']):
+            data['rubric[criteria][{}][ratings][{}][description]'.format(i,j)] = rating['description']
+            data['rubric[criteria][{}][ratings][{}][points]'.format(i,j)] = rating['points']
+
+
+    return data
+
+
+def create_rubric_for_assignment(course, assignment, rubric,
+                                 comments=True,
+                                 base=None, access_token=None):
+    """
+    Creates a new rubric and associate it to an assignment
+
+    Parameters:
+        course: the course id
+        assignment: the assignment id
+        rubric: a dict describing the rubric
+        comments: whether to allow free style comments while grading.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        whatever it is that Canvas sends back
+    """
+
+    return contact_server(requests.post,
+                          "/api/v1/courses/{}/rubrics".format(course),
+                          data = rubric_to_data(assignment, rubric, comments)
+                          )
