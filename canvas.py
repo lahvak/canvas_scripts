@@ -1259,11 +1259,18 @@ def rubric_to_data(assignment, rubric, comments=True):
     for i, criterion in enumerate(rubric['criteria']):
         data["rubric[criteria][{}][description]".format(i)] = criterion['description']
         data['rubric[criteria][{}][long_description]'.format(i)] = criterion['long_description']
-        data['rubric[criteria][{}][points]'.format(i)] = criterion['points']
+        data['rubric[criteria][{}][points]'.format(i)] = criterion['points'] # Ignored?
         data['rubric[criteria][{}][criterion_use_range]'.format(i)] = criterion['use_range']
-        for j, rating in enumerate(criterion['ratings']):
-            data['rubric[criteria][{}][ratings][{}][description]'.format(i,j)] = rating['description']
-            data['rubric[criteria][{}][ratings][{}][points]'.format(i,j)] = rating['points']
+        if criterion['ratings']:
+            for j, rating in enumerate(criterion['ratings']):
+                data['rubric[criteria][{}][ratings][{}][description]'.format(i,j)] = rating['description']
+                data['rubric[criteria][{}][ratings][{}][points]'.format(i,j)] = rating['points']
+        else:  # default ratings,  Canvas creates those but messes up the points!
+            data['rubric[criteria][{}][ratings][0][description]'.format(i)] = "Full Points"
+            data['rubric[criteria][{}][ratings][0][points]'.format(i)] = criterion['points']
+            data['rubric[criteria][{}][ratings][1][description]'.format(i)] = "No Points"
+            data['rubric[criteria][{}][ratings][1][points]'.format(i)] = 0
+
 
 
     return data
