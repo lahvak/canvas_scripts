@@ -242,6 +242,71 @@ def post_group_announcement_from_markdown(group, title, markdown_body, access_to
                           },
                           base, access_token)
 
+
+def create_discussion(course, title, markdown_message, discussion_type="threaded",
+                      position_after=None,
+                      published=True, allow_rating=False, sort_by_rating=False,
+                      only_graders_can_rate=False,
+                      podcast_enabled=False, podcast_student_posts=False,
+                      require_initial_post=False, pinned=False, group=None,
+                      markdown_extensions=None,
+                      access_token=None, base=None):
+    """
+    Post a new discussion in a given course
+    Parameters:
+        course: a course ID, int or string
+        title: the title of the discussion
+        markdown_message: the message in markdown
+        discussion_type: threaded or side_comment
+        position_after: optional id of other discussion
+        published: should it be published
+        allow_rating: can post be rated
+        sort_by_rating: sort posts by rating
+        only_graders_can_rate: if true, only graders can rate (duh)
+        podcast_enabled: is there a podcast for the discussion
+        podcast_student_posts: include student posts in podcast
+        require_initial_post: do students have to post before commenting on
+            other posts
+        pinned: should the discussion be pinned
+        group: if set, the discussion will become a group discussion in a group
+            with this id
+        markdown_extensions: list of markdown extensions.  'extra' is
+            automatically added.
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    if markdown_extensions is None:
+        mkdext = ['extra']
+    else:
+        mkdext = markdown_extensions + ['extra']
+
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/discussion_topics'.format(course),
+                          dict([
+                              ('title', title),
+                              ('message',
+                                markdown.markdown(markdown_message,
+                                                  extensions=mkdext,
+                                                  )),
+                              ('is_announcement', '0'),
+                              ('discussion_type', discussion_type),
+                              ('published', published),
+                              ('allow_rating', allow_rating),
+                              ('sort_by_rating', sort_by_rating),
+                              ('only_graders_can_rate', only_graders_can_rate),
+                              ('podcast_enabled', podcast_enabled),
+                              ('podcast_has_student_posts', podcast_student_posts),
+                              ('require_initial_post', require_initial_post),
+                              ('pinned', pinned),
+                          ] +
+                              ([] if group is None else [('group', group)]) +
+                              ([] if position_after is None
+                               else [('position_after', position_after)])
+                          ),
+                              base, access_token)
+
+
 def create_page_from_markdown(course, title, markdown_body, published=True,
                               access_token=None, base=None):
     """
