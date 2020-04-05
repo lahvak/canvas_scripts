@@ -93,6 +93,26 @@ def contact_server(contact_function, location, data=None, base=None,
     return contact_function((base_url if base is None else base) + location,
                             params=params)
 
+
+def progress(prog_url, access_token=None):
+    """
+    Iterator that repeatedly checks progress from the given url.  It yields the
+    json results of the progress query.  It stops when workflow state is no
+    longer queued nor running.
+    """
+
+    while True:
+        resp = requests.get(prog_url,
+                            data={'access_token': token if access_token is None
+                                  else access_token})
+        resp.raise_for_status()
+        json = resp.json()
+        yield json
+        status = json['workflow_state']
+        if status != 'queued' and status != 'running':
+            break
+
+
 def create_calendar_event(event_data, base=None, access_token=None):
     "Post an event described by `event_data` dict to a calendar"
 
