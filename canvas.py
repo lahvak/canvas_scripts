@@ -529,6 +529,47 @@ def upload_file_to_course(course, local_file, upload_path, remote_name=None,
         return requests.post(upload_url, data=upload_params, files={'file':file})
 
 
+def import_qti_quiz(course, qti_file, access_token=None, base=None):
+    """
+    Upload a file to the course 'files'. This is specifically meant to upload
+    quizzes created by R/exams, namely `exams2canvas` function, so it is not as
+    flexible as it could be.
+
+    Parameters:
+        course: the course id
+        qti_file: the local path to the file.  The file must exist, and not be
+            huge, and it must be a qti zipped file
+        access_token: access token
+        base: base url of canvas server
+
+    Returns:
+        Response with the migration info
+    """
+
+    response = contact_server(requests.post,
+                              'api/v1/courses/{}/content_migrations'.format(course),
+                              data=dict(
+                                  [
+                                      ('migration_type', 'qti_converter'),
+                                      ('pre_attachment[name]', basename(qti_file)),
+                                      ('pre_attachment[size]', getsize(qti_file))
+                                  ]),
+                              base=base, access_token=access_token)
+    response.raise_for_status()
+
+    upload_url = response.json()['pre_attachment']['upload_url']
+    upload_params = response.json()['pre_attachment']['upload_params']
+    migration_id = response.json()['id']
+
+    with open(qti_file, 'rb') as file:
+        requests.post(upload_url, data=upload_params, files={'file':file})
+
+    return contact_server(requests.get,
+                          "/api/v1/courses/{}/content_migrations/{}".format(
+                              course, migration_id
+                          ))
+
+
 def get_list_of_courses(access_token=None, base=None):
     """
     Returns a list of current user's courses, as a list of json course data,
