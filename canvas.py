@@ -379,6 +379,7 @@ def update_page_from_markdown(course, title, markdown_body, url, published=True,
                           },
                           base, access_token)
 
+
 def get_assignment_groups(course, access_token=None, base=None):
     """
     Gets a list of all assignment groups for a course.
@@ -392,6 +393,56 @@ def get_assignment_groups(course, access_token=None, base=None):
                           'api/v1/courses/{}/assignment_groups'.format(course),
                           {'include[]':'assignments'},
                           base, access_token)
+
+
+def create_assignment_group(course, name, position=None, group_weight=0,
+                            access_token=None, base=None):
+    """
+    Create an assignment group in the course.
+    Parameters:
+        course: a course ID, int or string
+        name: the name of the group
+        position: position of the group on the group list
+        group_weight: relative weight of the group in grading, percent
+        access_token: access token
+        base: base url of canvas server
+
+    Currently does not allow setting grading rules. (TODO)
+    """
+
+    return contact_server(requests.post,
+                          'api/v1/courses/{}/assignment_groups'.format(course),
+                          dict([
+                              ('name', name),
+                              ('group_weight', group_weight),
+                          ] +
+                              ([] if position is None
+                                else [('position', position)])
+                          ),
+                          base, access_token)
+
+
+def delete_assignment_group(course, group_id, move_assignments_to=None,
+                            access_token=None, base=None):
+    """
+    Create an assignment group in the course.
+    Parameters:
+        course: a course ID, int or string
+        group_id: the id of the group, int or string
+        move_assignments_to: id of a group to move assignments to, if None,
+            the assignments will be deleted
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    return contact_server(requests.delete,
+                          'api/v1/courses/{}/assignment_groups/{}'
+                            .format(course, group_id),
+                          dict([] if move_assignments_to is None
+                                else [('move_assignments_to',
+                                       move_assignments_to)]),
+                          base, access_token)
+
 
 def create_assignment(course, name, markdown_description, points, due_at,
                       group_id, submission_types="on_paper",
