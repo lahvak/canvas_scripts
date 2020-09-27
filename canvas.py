@@ -1296,15 +1296,15 @@ def create_module_item(course, module, title, position, itemtype, indent=0,
                           dict([("module_item[title]", title),
                                 ("module_item[type]", itemtype),
                                 ("module_item[position]", position),
-                                ("module_item[indent]", indent)] +
+                                ("module_item[indent]", indent),
+                                ("module_item[new_tab]", (1 if new_tab else 0))
+                                ] +
                                 ([] if content is None
                                   else [("module_item[content_id]", content)]) +
                                 ([] if page_url is None
                                   else [("module_item[page_url]", page_url)]) +
                                 ([] if external_url is None
-                                  else [("module_item[external_url]", external_url)]) +
-                                ([] if new_tab is None
-                                  else [("module_item[new_tab]", new_tab)])
+                                  else [("module_item[external_url]", external_url)])
                                ),
                           base, access_token)
 
