@@ -1041,6 +1041,30 @@ def update_grade(course, assignment_id, student_id, grade, base=None,
         base, access_token)
 
 
+def comment_on_submission(course, assignment_id, student_id, comment,
+                          base=None, access_token=None):
+    """
+    Submit a comment on a submission.
+
+    Parameters:
+        course: the course ID
+        assignment_id: the ID of the assignment
+        student_id: an id of the graded student
+        comment: a string with a comment for the submission
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns something, hopefully
+    """
+
+    return contact_server(
+        requests.put,
+        "/api/v1/courses/{}/assignments/{}/submissions/{}".format(
+            course, assignment_id, student_id),
+        {"comment[text_comment]": comment},
+        base, access_token)
+
+
 def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
     """
     Get assignment(s) submission(s) from the course.
