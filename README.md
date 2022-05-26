@@ -1,5 +1,13 @@
 # canvas_scripts
 
+Note that there is now a [Python Canvas API library](https://github.com/ucfopen/canvasapi) created
+by the University of Central Florida that is much more complete, much better documented ans in
+general much better than this. I recommend you use their library for new projects.
+
+I will probably end up converting my [utility scripts](https://github.com/lahvak/canvas_utils) to use their library eventually.
+
+---
+
 Some python scripts for the Canvas learning management system
 
 The Canvas course management system by Instructure has a RESTful API that allows
