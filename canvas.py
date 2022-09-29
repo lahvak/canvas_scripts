@@ -1065,6 +1065,38 @@ def comment_on_submission(course, assignment_id, student_id, comment,
         base, access_token)
 
 
+# This is really pretty much useless.  The custom columns are not shown to
+# students, they are only for some sort of teacher notes to themselves. Don't
+# see the point. I added this because I was hoping that I will be able to add
+# columns to gradebook with non-point-based grades for mastery based grading,
+# but Canvas is very "point oriented".
+def create_gradebook_column(course, title, position=0, hidden=False,
+                            read_only=False, base=None, access_token=None):
+    """
+    Create a custom gradebook column.
+
+    Parameters:
+        course: the course ID
+        title: the title of the column
+        position: the position of the column relative to other custom columns
+        hidden: not displayed in gradebook
+        read_only: if true, the column will not be editable in the browser UI
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns something, hopefully
+    """
+
+    return contact_server(
+        requests.post,
+        "/api/v1/courses/{}/custom_gradebook_columns".format(course),
+        dict([('column[title]', title),
+              ('column[position]', position),
+              ('column[hidden]', 1 if hidden else 0),
+              ('column[read_only]', 1 if read_only else 0)]),
+        base, access_token)
+
+
 def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
     """
     Get assignment(s) submission(s) from the course.
