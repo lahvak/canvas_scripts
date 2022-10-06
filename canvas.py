@@ -1097,6 +1097,60 @@ def create_gradebook_column(course, title, position=0, hidden=False,
         base, access_token)
 
 
+def course(course):
+    """
+    Utility function that takes a course id and prefixes it with 'course_'.
+    """
+
+    return f"course_{course}"
+
+
+def group(group):
+    """
+    Utility function that takes a group id and prefixes it with 'group_'.
+    """
+
+    return f"group_{group}"
+
+
+def create_conversation(recipients, subject, body, force_new=False,
+                        is_group_conversation=False,
+                        context=None, base=None, access_token=None):
+    """
+    Create a conversation.
+
+    Parameters:
+        recipients: list of recipient ids.  Can include groups or courses by
+                    prefixing them with 'group_' or 'course_'
+        subject: the subject of the conversation
+        body: the body of the conversation
+        force_new: force new conversation even if there is an existing
+                    conversation with the same recipients
+        is_group_conversation: if true, create a group conversation instead of
+                                bunch of individual conversations with each
+                                recipient
+        context: group of course that is the context of the conversation.
+                    Course or group ID prefixed with 'course_' or 'group_'
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns something, hopefully
+    """
+
+    return contact_server(
+        requests.post,
+        "/api/v1/conversations",
+        dict([('recipients[]', recipients),
+              ('subject', subject),
+              ('body', body),
+              ('scope', 'unread'),
+              ('force_new', 1 if force_new else 0),
+              ('group_conversation', 1 if is_group_conversation else 0)] +
+             ([] if context is None else [('context_code', context)])
+             ),
+        base, access_token)
+
+
 def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
     """
     Get assignment(s) submission(s) from the course.
