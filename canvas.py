@@ -11,6 +11,12 @@ import requests
 import arrow
 import markdown
 
+HAS_PANDOC = True
+try:
+    import pypandoc
+except ImportError:
+    HAS_PANDOC = False
+
 base_url = "https://svsu.instructure.com/"
 token = 'An invalid token.  Redefine with your own'
 this_year = int(arrow.now().format('YYYY'))
@@ -217,33 +223,53 @@ def create_events_from_list(course, event_list, start, length, base=None,
         classtime = classtime.replace(days=2 if i % 2 == 0 else 5)
 
 
+def convert_markdown(body, use_pandoc):
+    """
+    Convert markdown string `body` to html. Use pandoc for conversion if
+    `use_pandoc` is true and pandoc is available.
+    """
+
+    if use_pandoc and not HAS_PANDOC:
+        print("Warning: pypandoc not available! Trying builtin converter.")
+        print("Install pypandoc module to get rid of this error.")
+        use_pandoc = False
+
+    if use_pandoc:
+        return pypandoc.convert_text(body, "html", format="md",
+                                     extra_args=["--mathml"])
+    else:
+        return markdown.markdown(body, extensions=['extra'])
+
+
 def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
-                                  base=None):
+                                  use_pandoc=False, base=None):
     """
     Uploads syllabus body to a given course.
     Parameters:
         course: a course ID, int or string
         markdown_body: the body of syllabus in markdown
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
 
     return contact_server(requests.put, 'api/v1/courses/{}'.format(course),
                           {'course[syllabus_body]':
-                           markdown.markdown(
-                               markdown_body, extensions=['extra'])
+                           convert_markdown(markdown_body, use_pandoc)
                            },
                           base, access_token)
 
 
 def post_announcement_from_markdown(
-        course, title, markdown_body, access_token=None, base=None):
+        course, title, markdown_body, use_pandoc=False,
+        access_token=None, base=None):
     """
     Post an announcement to a given course
     Parameters:
         course: a course ID, int or string
         title: the title of the announcement
         markdown_body: the body of the announcement in markdown
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
@@ -252,22 +278,23 @@ def post_announcement_from_markdown(
                           'api/v1/courses/{}/discussion_topics'.format(course),
                           {
                               'title': title,
-                              'message':
-                                  markdown.markdown(
-                                      markdown_body, extensions=['extra']),
+                              'message': convert_markdown(markdown_body,
+                                                          use_pandoc),
                               'is_announcement': '1'
                           },
                           base, access_token)
 
 
 def post_group_announcement_from_markdown(
-        group, title, markdown_body, access_token=None, base=None):
+        group, title, markdown_body, use_pandoc=False,
+        access_token=None, base=None):
     """
     Post an announcement to a given group
     Parameters:
         group: a group ID, int or string
         title: the title of the announcement
         markdown_body: the body of the announcement in markdown
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
@@ -277,8 +304,7 @@ def post_group_announcement_from_markdown(
                           {
                               'title': title,
                               'message':
-                                  markdown.markdown(
-                                      markdown_body, extensions=['extra']),
+                              convert_markdown(markdown_body, use_pandoc),
                               'is_announcement': '1'
                           },
                           base, access_token)
@@ -291,7 +317,7 @@ def create_discussion(
         only_graders_can_rate=False,
         podcast_enabled=False, podcast_student_posts=False,
         require_initial_post=False, pinned=False, group=None,
-        markdown_extensions=None,
+        use_pandoc=False,
         access_token=None, base=None):
     """
     Post a new discussion in a given course
@@ -312,25 +338,18 @@ def create_discussion(
         pinned: should the discussion be pinned
         group: if set, the discussion will become a group discussion in a group
             with this id
-        markdown_extensions: list of markdown extensions.  'extra' is
-            automatically added.
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
-
-    if markdown_extensions is None:
-        mkdext = ['extra']
-    else:
-        mkdext = markdown_extensions + ['extra']
 
     return contact_server(requests.post,
                           'api/v1/courses/{}/discussion_topics'.format(course),
                           dict([
                               ('title', title),
                               ('message',
-                               markdown.markdown(markdown_message,
-                                                 extensions=mkdext,
-                                                 )),
+                               convert_markdown(markdown_message, use_pandoc)
+                               ),
                               ('is_announcement', '0'),
                               ('discussion_type', discussion_type),
                               ('published', published),
@@ -351,7 +370,7 @@ def create_discussion(
 
 
 def create_page_from_markdown(course, title, markdown_body, published=True,
-                              access_token=None, base=None):
+                              use_pandoc=False, access_token=None, base=None):
     """
     Creates a wiki page in a given course
     Parameters:
@@ -359,6 +378,7 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
         title: the title of the page
         markdown_body: the body of page in markdown
         published: if the page should be published
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
@@ -368,8 +388,7 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
                           {
                               'wiki_page[title]': title,
                               'wiki_page[body]':
-                                  markdown.markdown(markdown_body,
-                                                    extensions=['extra']),
+                              convert_markdown(markdown_body, use_pandoc),
                               'wiki_page[published]': '1' if published else '0'
                           },
                           base, access_token)
@@ -379,7 +398,7 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
 
 def update_page_from_markdown(
         course, title, markdown_body, url, published=True,
-        access_token=None, base=None):
+        use_pandoc=False, access_token=None, base=None):
     """
     updates a wiki page in a given course
     Parameters:
@@ -388,6 +407,7 @@ def update_page_from_markdown(
         markdown_body: the body of page in markdown
         url: the url of this page in the current course
         published: if the page should be published
+        use_pandoc: use Pandoc to convert markdown when available
         access_token: access token
         base: base url of canvas server
     """
@@ -397,8 +417,7 @@ def update_page_from_markdown(
                           {
                               'wiki_page[title]': title,
                               'wiki_page[body]':
-                                  markdown.markdown(markdown_body,
-                                                    extensions=['extra']),
+                              convert_markdown(markdown_body, use_pandoc),
                               'wiki_page[published]': '1' if published else '0'
                           },
                           base, access_token)
