@@ -17,17 +17,17 @@ try:
 except ImportError:
     HAS_PANDOC = False
 
-base_url = "https://svsu.instructure.com/"
-token = 'An invalid token.  Redefine with your own'
-this_year = int(arrow.now().format('YYYY'))
+BASE_URL = "https://svsu.instructure.com/"
+TOKEN = 'An invalid token.  Redefine with your own'
+THIS_YEAR = int(arrow.now().format('YYYY'))
 
 
 def read_access_token(file='~/.canvas/access_token'):
     "Read access token if available"
-    global token
+    global TOKEN
     try:
         with open(expanduser(file), 'r') as f:
-            token = f.read().rstrip('\n')
+            TOKEN = f.read().rstrip('\n')
     except:
         print("Could not read access token")
 
@@ -96,14 +96,14 @@ def contact_server(contact_function, location, data=None, base=None,
         params = data.copy()  # prevent them from being clobbered
     if isinstance(params, dict):
         params['access_token'] = (
-            token if access_token is None
+            TOKEN if access_token is None
             else access_token)
     else:
         params += [('access_token',
-                    token if access_token is None
+                    TOKEN if access_token is None
                     else access_token)]
 
-    return contact_function((base_url if base is None else base) + location,
+    return contact_function((BASE_URL if base is None else base) + location,
                             params=params)
 
 
@@ -116,7 +116,7 @@ def progress(prog_url, access_token=None):
 
     while True:
         resp = requests.get(prog_url,
-                            data={'access_token': token if access_token is None
+                            data={'access_token': TOKEN if access_token is None
                                   else access_token})
         resp.raise_for_status()
         json = resp.json()
@@ -193,7 +193,7 @@ def class_span(start, length):
     return start.isoformat(), start.replace(minutes=length).isoformat()
 
 
-def firstclass(month, day, hour, minute, year=this_year):
+def firstclass(month, day, hour, minute, year=THIS_YEAR):
     """
     A convenience function creating an arrow object for the first class
     in the semester
