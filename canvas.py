@@ -28,8 +28,9 @@ def read_access_token(file='~/.canvas/access_token'):
     try:
         with open(expanduser(file), 'r') as f:
             TOKEN = f.read().rstrip('\n')
-    except:
-        print("Could not read access token")
+    except Exception as err:
+        print("Could not read access token due to the following error: ",
+              repr(err))
 
 
 # The main purpose for this is that we cannot splat things into a dict :(
