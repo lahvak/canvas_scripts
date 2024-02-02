@@ -137,6 +137,28 @@ class RequestWithData(Request):
                              headers=self.stuff["headers"])
 
 
+class RequestOrderedData(Request):
+    def __init__(self, function, locashun, base=None, access_token=None):
+        super().__init__(function, locashun, base, access_token)
+        self.stuff["data"] = []
+
+    def add_data(self, key, value):
+        self.stuff['data'] += [(key, value)]
+
+    def add_optional_data(self, key, value):
+        if value is not None:
+            self.stuff['data'] += [(key, value)]
+
+    def add_data_dict(self, hash):
+        self.stuff['data'] += [(key, value) for key, value in hash.items()]
+
+    def submit(self):
+        return self.function(self.URL(), data=self.stuff["data"],
+                             params=self.stuff["params"],
+                             headers=self.stuff["headers"])
+
+
+
 def get_all_pages(orig_url, params=None, headers=None):
     """
     Auxiliary function that uses the 'next' links returned from the server to
@@ -1574,13 +1596,14 @@ def create_grading_standard(course, name, grades, cutoffs,
     if len(cutoffs) == len(grades) - 1:
         cutoffs += [0]
 
-    req = RequestWithData(
+    req = RequestOrderedData(
         post_to_json, f"/api/v1/courses/{course}/grading_standards",
         base, access_token
     )
     req.add_data('title', name)
     for g, c in zip(grades, cutoffs):
-        req.add_data('grading_scheme_entry[]', {'name': g, 'value': c})
+        req.add_data('grading_scheme_entry[][name]', g)
+        req.add_data('grading_scheme_entry[][value]', c)
 
     return req.submit()
 
