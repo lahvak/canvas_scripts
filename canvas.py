@@ -2,14 +2,15 @@
 A module for interacting with Instructure Canvas
 
 Global parameters (most can also be changed on individual function calls):
-    base_url: string, containing the base url of canvas server
-    token: string, containing the user access token.
-    this_year: current year, for making class schedules
+    BASE_URL: string, containing the base url of canvas server
+    TOKEN: string, containing the user access token.
+    THIS_YEAR: current year, for making class schedules
 """
-from os.path import expanduser, getsize, basename
 import requests
 import arrow
 import markdown
+from os.path import expanduser, getsize, basename
+from requests.exceptions import HTTPError
 
 HAS_PANDOC = True
 try:
@@ -33,35 +34,117 @@ def read_access_token(file='~/.canvas/access_token'):
               repr(err))
 
 
-# The main purpose for this is that we cannot splat things into a dict :(
-def calendar_event_data(course, title, description, start_at, end_at):
+def check_headers(headers):
     """
-    Creates a dict with parameters for calendar event data to be passed to
-    `create_calendar_event`. Parameters:
-        course: course id, string or int
-        title: string, event title
-        description: string, detailed event description
-        start_at: starting time, in YYYY-MM-DDTHH:MMZZ format
-        end_at: ending time, in YYYY-MM-DDTHH:MMZZ format
+    Make sure headers contain authorization info.
     """
-    event_data = {
-        'calendar_event[context_code]': 'course_{}'.format(course),
-        'calendar_event[title]': title,
-        'calendar_event[description]': description,
-        'calendar_event[start_at]': start_at,
-        'calendar_event[end_at]': end_at,
-    }
-    return event_data
+    if headers is None or "Authorization" not in headers:
+        raise ValueError("Headers must contain authorization info.")
 
 
-def get_all_pages(orig_url, params=None):
+def add_item_to_possible_list(item_or_list, item):
+    """
+    If `item_or_list` is not list, returns `[item_or_list, item]`.
+    Otherwise add `item` to `item_or_list` and returns that.
+    """
+
+    if isinstance(item_or_list, list):
+        return item_or_list + [item]
+
+    return [item_or_list, item]
+
+
+class RequestBase(object):
+    def __init__(self, locashun, base=None, access_token=None):
+        self.base = BASE_URL if base is None else base
+        self.token = TOKEN if access_token is None else access_token
+        self.locashun = locashun
+        self.stuff = {"headers": {"Authorization": f"Bearer {self.token}"}}
+
+    def URL(self):
+        locashun = self.locashun
+        if locashun[0] == "/":
+            locashun = locashun[1:]
+
+        if self.base[-1] == "/":
+            sep = ""
+        else:
+            sep = "/"
+
+        return self.base + sep + locashun
+
+    def base_request_add_to_dict(self, which_stuff, key, value, overwrite):
+        if which_stuff not in self.stuff:
+            self.stuff[which_stuff] = {key: value}
+        elif not overwrite and key in self.stuff[which_stuff]:
+            add_item_to_possible_list(self.stuff[which_stuff][key], value)
+        else:
+            self.stuff[which_stuff][key] = value
+
+    def base_request_add_optional_to_dict(self, which_stuff, key, value,
+                                          overwrite):
+        if value is not None:
+            self.base_request_add_to_dict(which_stuff, key, value, overwrite)
+
+    def base_request_add_dict_to_dict(self, which_stuff, hash):
+        if (
+                which_stuff not in self.stuff
+                or not isinstance(self.stuff[which_stuff], dict)
+                ):
+            self.stuff[which_stuff] = hash.copy()
+        else:
+            self.stuff[which_stuff].update(hash)
+
+
+class Request(RequestBase):
+    def __init__(self, function, locashun, base=None, access_token=None):
+        super().__init__(locashun, base, access_token)
+        self.function = function
+        self.stuff["params"] = dict()
+
+    def add_param(self, key, value, overwrite=False):
+        self.base_request_add_to_dict("params", key, value, overwrite)
+
+    def add_optional_param(self, key, value, overwrite=False):
+        self.base_request_add_optional_to_dict("params", key, value, overwrite)
+
+    def add_param_dict(self, hash):
+        self.base_request_add_dict_to_dict("params", hash)
+
+    def submit(self):
+        return self.function(self.URL(),
+                             params=self.stuff["params"],
+                             headers=self.stuff["headers"])
+
+
+class RequestWithData(Request):
+    def __init__(self, function, locashun, base=None, access_token=None):
+        super().__init__(function, locashun, base, access_token)
+        self.stuff["data"] = dict()
+
+    def add_data(self, key, value, overwrite=False):
+        self.base_request_add_to_dict("data", key, value, overwrite)
+
+    def add_optional_data(self, key, value, overwrite=False):
+        self.base_request_add_optional_to_dict("data", key, value, overwrite)
+
+    def add_data_dict(self, hash):
+        self.base_request_add_dict_to_dict("data", hash)
+
+    def submit(self):
+        return self.function(self.URL(), data=self.stuff["data"],
+                             params=self.stuff["params"],
+                             headers=self.stuff["headers"])
+
+
+def get_all_pages(orig_url, params=None, headers=None):
     """
     Auxiliary function that uses the 'next' links returned from the server to
     request additional pages and combine them together into one json response.
     Parameters:
         orig_url: the url for the original request
-        params: a dict with the parameters for the original request (must
-                    contain access token)
+        params: a dict with the parameters for the original request
+        headers: Headers for the requests.  Must contain authorization info.
     Returns:
         A combined list of json results returned in all pages.
     Warning:
@@ -70,55 +153,153 @@ def get_all_pages(orig_url, params=None):
     """
     url = orig_url
     json = []
+
+    check_headers(headers)
+
     if params is None:
         params = {}
     while True:
-        resp = requests.get(url, params=params)
+        resp = requests.get(url, params=params, headers=headers)
         json += resp.json()
         if 'next' not in resp.links:
             return json
         url = resp.links['next']['url']
-        params = {'access_token': params['access_token']}
+        params = {}
 
 
-def contact_server(contact_function, location, data=None, base=None,
-                   access_token=None):
+def get_to_json(url, params=None, headers=None):
     """
-    Abstracting a server request. Builds a url from base and location, adds
-    access_token if given, or default token, to data dict, and calls
-    contact_function with the url and data.  Returns the result of the
-    contact_function.
+    Makes a GET request to a given url, and return json from the server.
 
-    Also accepts a list of pairs as data.
+    `headers` must contain authorization info.
+
+    Returns json code from the response, or json with error code if there is
+    an HTTP error.
     """
-    if data is None:
-        params = dict()
-    else:
-        params = data.copy()  # prevent them from being clobbered
-    if isinstance(params, dict):
-        params['access_token'] = (
-            TOKEN if access_token is None
-            else access_token)
-    else:
-        params += [('access_token',
-                    TOKEN if access_token is None
-                    else access_token)]
 
-    return contact_function((BASE_URL if base is None else base) + location,
-                            params=params)
+    check_headers(headers)
+
+    try:
+        resp = requests.get(url, params=params, headers=headers)
+        resp.raise_for_status()
+    except HTTPError as err:
+        return {'Error': err.response.status_code}
+
+    return resp.json()
 
 
-def progress(prog_url, access_token=None):
+def delete_to_json(url, params=None, headers=None):
+    """
+    Makes a DELETE request to a given url, and return json from the server.
+
+    `headers` must contain authorization info.
+
+    Returns json code from the response, or json with error code if there is
+    an HTTP error.
+    """
+
+    check_headers(headers)
+
+    try:
+        resp = requests.delete(url, params=params, headers=headers)
+        resp.raise_for_status()
+    except HTTPError as err:
+        return {'Error': err.response.status_code}
+
+    return resp.json()
+
+
+def put_to_json(url, params=None, data=None, headers=None):
+    """
+    Makes a GET request to a given url, and return json from the server.
+
+    `headers` must contain authorization info.
+
+    Returns json code from the response, or json with error code if there is
+    an HTTP error.
+    """
+
+    check_headers(headers)
+
+    try:
+        resp = requests.put(url, params=params, data=data, headers=headers)
+        resp.raise_for_status()
+    except HTTPError as err:
+        return {'Error': err.response.status_code}
+
+    return resp.json()
+
+
+def post_to_json(url, params=None, data=None, headers=None):
+    """
+    Makes a POST request to a given url, and return json from the server.
+
+    `headers` must contain authorization info.
+
+    Returns json code from the response, or json with error code if there is
+    an HTTP error.
+    """
+
+    check_headers(headers)
+
+    try:
+        resp = requests.post(url, params=params, data=data, headers=headers)
+        resp.raise_for_status()
+    except HTTPError as err:
+        return {'Error': err.response.status_code}
+
+    return resp.json()
+
+
+def upload_file(url, params=None, data=None, headers=None):
+    """
+    Initiates a file upload to a given url. The `data` parameter must have a
+    key called `local_file`, containing the local path to the uploaded file.
+
+    `headers` must contain authorization info.
+
+    Returns a combined json of the two requests, with keys:
+        'init' from upload init request
+        'upload' from the actual upload
+    """
+
+    check_headers(headers)
+
+    if 'local_file' not in data:
+        raise ValueError("No path to local file given.")
+
+    local_file = data.pop('local_file')
+
+    # TODO: should check that it exists
+
+    resp = requests.post(url, params=params, data=data, headers=headers)
+
+    resp.raise_for_status()
+
+    json1 = resp.json()
+
+    upload_url = json1["upload_url"]
+    upload_params = json1["upload_params"]
+
+    with open(local_file, 'rb') as file:
+        json2 = post_to_json(
+            upload_url, data=upload_params, files={'file': file}
+        )
+
+    return {'init': json1, 'upload': json2}
+
+
+def progress(prog_url, headers=None):
     """
     Iterator that repeatedly checks progress from the given url.  It yields the
     json results of the progress query.  It stops when workflow state is no
-    longer queued nor running.
+    longer queued nor running.  The `headers` must contain authorization info.
     """
 
+    check_headers(headers)
+
     while True:
-        resp = requests.get(prog_url,
-                            data={'access_token': TOKEN if access_token is None
-                                  else access_token})
+        resp = requests.get(prog_url, headers=headers)
         resp.raise_for_status()
         json = resp.json()
         yield json
@@ -127,11 +308,32 @@ def progress(prog_url, access_token=None):
             break
 
 
-def create_calendar_event(event_data, base=None, access_token=None):
-    "Post an event described by `event_data` dict to a calendar"
+def create_calendar_event(course, title, description, start_at, end_at,
+                          base=None, access_token=None):
+    """
+    Creates a calendar event.
+    Parameters:
+        course: course id, string or int
+        title: string, event title
+        description: string, detailed event description
+        start_at: starting time, in YYYY-MM-DDTHH:MMZZ format
+        end_at: ending time, in YYYY-MM-DDTHH:MMZZ format
+    Returns: json from server
+    """
 
-    return contact_server(requests.post, 'api/v1/calendar_events.json',
-                          event_data, base, access_token)
+    req = RequestWithData(
+        post_to_json,
+        'api/v1/calendar_events.json',
+        base,
+        access_token
+    )
+    req.add_data('calendar_event[context_code]', f'course_{course}')
+    req.add_data('calendar_event[title]', title)
+    req.add_data('calendar_event[description]', description)
+    req.add_data('calendar_event[start_at]', start_at)
+    req.add_data('calendar_event[end_at]', end_at)
+
+    return req.submit()
 
 
 def list_calendar_events_between_dates(course, start_date, end_date, base=None,
@@ -146,14 +348,15 @@ def list_calendar_events_between_dates(course, start_date, end_date, base=None,
     Returns a list of json descriptions of events.
     """
 
-    return contact_server(get_all_pages, 'api/v1/calendar_events.json',
-                          {
-                              'type': 'event',
-                              'start_date': start_date,
-                              'end_date': end_date,
-                              'context_codes[]': 'course_{}'.format(course),
-                          },
-                          base, access_token)
+    req = Request(
+        get_all_pages, 'api/v1/calendar_events.json', base, access_token
+    )
+    req.add_data('type', 'event')
+    req.add_data('start_date', start_date)
+    req.add_data('end_date', end_date)
+    req.add_data('context_codes[]', f'course_{course}')
+
+    return req.submit()
 
 
 def list_calendar_events_all(course, base=None, access_token=None):
@@ -164,26 +367,29 @@ def list_calendar_events_all(course, base=None, access_token=None):
         access_token: optional access token, if different from global one
     """
 
-    return contact_server(get_all_pages, 'api/v1/calendar_events.json',
-                          {
-                              'type': 'event',
-                              'all_events': True,
-                              'context_codes[]': 'course_{}'.format(course),
-                          },
-                          base, access_token)
+    req = Request(
+        get_all_pages, 'api/v1/calendar_events.json', base, access_token
+    )
+    req.add_data('type', 'event')
+    req.add_data('all_events', True)
+    req.add_data('context_codes[]', f'course_{course}')
+
+    return req.submit()
 
 
-def delete_event(event_id, base=None, access_token=None):
+def delete_event(event_id, reason='no reason', base=None, access_token=None):
     """Deletes an event, specified by 'event_id'. Returns the event."""
 
-    return contact_server(requests.delete,
-                          'api/v1/calendar_events/{}'.format(event_id),
-                          {
-                              'cancel_reason': 'no reason',
-                              'access_token': access_token
-                          },
-                          base, access_token)
+    req = Request(
+        delete_to_json, f'api/v1/calendar_events/{event_id}',
+        base, access_token
+    )
+    req.add_data('cancel_reason', reason)
 
+    return req.submit()
+
+
+# TODO: move these to canvas_utils module
 
 def class_span(start, length):
     """Returns class starting and ending time in isoformat.  To be used with
@@ -218,10 +424,10 @@ def create_events_from_list(course, event_list, start, length, base=None,
     for i, event in enumerate(event_list):
         if event[0] != "":
             create_calendar_event(
-                calendar_event_data(course, event[0], event[1],
-                                    *class_span(classtime, length)),
-                base, access_token)
-        classtime = classtime.replace(days=2 if i % 2 == 0 else 5)
+                course, event[0], event[1], *class_span(classtime, length),
+                base, access_token
+            )
+        classtime = classtime.shift(days=2 if i % 2 == 0 else 5)
 
 
 def convert_markdown(body, use_pandoc):
@@ -254,11 +460,13 @@ def upload_syllabus_from_markdown(course, markdown_body, access_token=None,
         base: base url of canvas server
     """
 
-    return contact_server(requests.put, 'api/v1/courses/{}'.format(course),
-                          {'course[syllabus_body]':
-                           convert_markdown(markdown_body, use_pandoc)
-                           },
-                          base, access_token)
+    req = RequestWithData(
+        put_to_json, f'api/v1/courses/{course}', base, access_token
+    )
+    req.add_data('course[syllabus_body]',
+                 convert_markdown(markdown_body, use_pandoc))
+
+    req.submit()
 
 
 def post_announcement_from_markdown(
@@ -275,15 +483,15 @@ def post_announcement_from_markdown(
         base: base url of canvas server
     """
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/discussion_topics'.format(course),
-                          {
-                              'title': title,
-                              'message': convert_markdown(markdown_body,
-                                                          use_pandoc),
-                              'is_announcement': '1'
-                          },
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/discussion_topics',
+        base, access_token
+    )
+    req.add_data('title', title)
+    req.add_data('message', convert_markdown(markdown_body, use_pandoc))
+    req.add_data('is_announcement', '1')
+
+    return req.submit()
 
 
 def post_group_announcement_from_markdown(
@@ -300,15 +508,15 @@ def post_group_announcement_from_markdown(
         base: base url of canvas server
     """
 
-    return contact_server(requests.post,
-                          'api/v1/groups/{}/discussion_topics'.format(group),
-                          {
-                              'title': title,
-                              'message':
-                              convert_markdown(markdown_body, use_pandoc),
-                              'is_announcement': '1'
-                          },
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/groups/{group}/discussion_topics',
+        base, access_token
+    )
+    req.add_data('title', title)
+    req.add_data('message', convert_markdown(markdown_body, use_pandoc))
+    req.add_data('is_announcement', '1')
+
+    return req.submit()
 
 
 def create_discussion(
@@ -344,30 +552,26 @@ def create_discussion(
         base: base url of canvas server
     """
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/discussion_topics'.format(course),
-                          dict([
-                              ('title', title),
-                              ('message',
-                               convert_markdown(markdown_message, use_pandoc)
-                               ),
-                              ('is_announcement', '0'),
-                              ('discussion_type', discussion_type),
-                              ('published', published),
-                              ('allow_rating', allow_rating),
-                              ('sort_by_rating', sort_by_rating),
-                              ('only_graders_can_rate', only_graders_can_rate),
-                              ('podcast_enabled', podcast_enabled),
-                              ('podcast_has_student_posts',
-                                  podcast_student_posts),
-                              ('require_initial_post', require_initial_post),
-                              ('pinned', pinned),
-                          ] +
-                              ([] if group is None else [('group', group)]) +
-                              ([] if position_after is None
-                               else [('position_after', position_after)])
-                          ),
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/discussion_topics',
+        base, access_token
+    )
+    req.add_data('title', title)
+    req.add_data('message', convert_markdown(markdown_message, use_pandoc))
+    req.add_data('is_announcement', '0')
+    req.add_data('discussion_type', discussion_type)
+    req.add_data('published', published)
+    req.add_data('allow_rating', allow_rating)
+    req.add_data('sort_by_rating', sort_by_rating)
+    req.add_data('only_graders_can_rate', only_graders_can_rate)
+    req.add_data('podcast_enabled', podcast_enabled)
+    req.add_data('podcast_has_student_posts', podcast_student_posts)
+    req.add_data('require_initial_post', require_initial_post)
+    req.add_data('pinned', pinned)
+    req.add_data_optional('group', group)
+    req.add_data_optional('position_after', position_after)
+
+    return req.submit()
 
 
 def create_page_from_markdown(course, title, markdown_body, published=True,
@@ -384,15 +588,15 @@ def create_page_from_markdown(course, title, markdown_body, published=True,
         base: base url of canvas server
     """
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/pages'.format(course),
-                          {
-                              'wiki_page[title]': title,
-                              'wiki_page[body]':
-                              convert_markdown(markdown_body, use_pandoc),
-                              'wiki_page[published]': '1' if published else '0'
-                          },
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/pages', base, access_token
+    )
+    req.add_data('wiki_page[title]', title)
+    req.add_data('wiki_page[body]',
+                 convert_markdown(markdown_body, use_pandoc))
+    req.add_data('wiki_page[published]', '1' if published else '0')
+
+    return req.submit()
 
 
 # The following function was provided by Mark A. Lilly (marqpdx):
@@ -413,15 +617,15 @@ def update_page_from_markdown(
         base: base url of canvas server
     """
 
-    return contact_server(requests.put,
-                          'api/v1/courses/{}/pages/{}'.format(course, url),
-                          {
-                              'wiki_page[title]': title,
-                              'wiki_page[body]':
-                              convert_markdown(markdown_body, use_pandoc),
-                              'wiki_page[published]': '1' if published else '0'
-                          },
-                          base, access_token)
+    req = RequestWithData(
+        put_to_json, f'api/v1/courses/{course}/pages/{url}', base, access_token
+    )
+    req.add_data('wiki_page[title]', title)
+    req.add_data('wiki_page[body]',
+                 convert_markdown(markdown_body, use_pandoc))
+    req.add_data('wiki_page[published]', '1' if published else '0')
+
+    return req.submit()
 
 
 def get_assignment_groups(course, access_token=None, base=None):
@@ -433,10 +637,13 @@ def get_assignment_groups(course, access_token=None, base=None):
         base: base url of canvas server
     """
 
-    return contact_server(get_all_pages,
-                          'api/v1/courses/{}/assignment_groups'.format(course),
-                          {'include[]': 'assignments'},
-                          base, access_token)
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/assignment_groups',
+        base, access_token
+    )
+    req.add_param('include[]', 'assignments')
+
+    return req.submit()
 
 
 def create_assignment_group(course, name, position=None, group_weight=0,
@@ -454,16 +661,15 @@ def create_assignment_group(course, name, position=None, group_weight=0,
     Currently does not allow setting grading rules. (TODO)
     """
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/assignment_groups'.format(course),
-                          dict([
-                              ('name', name),
-                              ('group_weight', group_weight),
-                          ] +
-                              ([] if position is None
-                               else [('position', position)])
-                          ),
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/assignment_groups',
+        base, access_token
+    )
+    req.add_data('name', name)
+    req.add_data('group_weight', group_weight)
+    req.add_optional_data('position', position)
+
+    return req.submit()
 
 
 def delete_assignment_group(course, group_id, move_assignments_to=None,
@@ -479,13 +685,14 @@ def delete_assignment_group(course, group_id, move_assignments_to=None,
         base: base url of canvas server
     """
 
-    return contact_server(requests.delete,
-                          'api/v1/courses/{}/assignment_groups/{}'
-                          .format(course, group_id),
-                          dict([] if move_assignments_to is None
-                               else [('move_assignments_to',
-                                      move_assignments_to)]),
-                          base, access_token)
+    req = Request(
+        delete_to_json,
+        f'api/v1/courses/{course}/assignment_groups/{group_id}',
+        base, access_token
+    )
+    req.add_optional_param('move_assignments_to', move_assignments_to)
+
+    return req.submit()
 
 
 def create_assignment(course, name, markdown_description, points, due_at,
@@ -493,6 +700,7 @@ def create_assignment(course, name, markdown_description, points, due_at,
                       allowed_extensions=None, peer_reviews=False,
                       auto_peer_reviews=False, ext_tool_url=None,
                       ext_tool_new_tab=False,
+                      use_pandoc=True,
                       access_token=None, base=None):
     """
     Creates a simple assignment in the given course.
@@ -514,6 +722,7 @@ def create_assignment(course, name, markdown_description, points, due_at,
         ext_tool_url: url of external tool, is submission_types contains
             "external_tool".
         ext_tool_new_tab: Boolean, should external tool open in a new tab.
+        use_pandoc: use Pandoc for markdown conversion, if installed.
         access_token: access token
         base: base url of canvas server
     """
@@ -522,34 +731,31 @@ def create_assignment(course, name, markdown_description, points, due_at,
     # a hash for external_tool_assignment_tag causes internal server error. The
     # fields have to he sent separately.
 
-    return contact_server(
-        requests.post,
-        'api/v1/courses/{}/assignments'.format(course),
-        dict([
-            ('assignment[name]', name),
-            ('assignment[description]',
-             markdown.markdown(markdown_description,
-                               extensions=['extra'])),
-            ('assignment[submission_types]',
-             submission_types),
-            ('assignment[points_possible]',  points),
-            ('assignment[due_at]', due_at),
-            ('assignment[assignment_group_id]',  group_id),
-            ('assignment[published]', 1),
-            ('assignment[peer_reviews]', peer_reviews),
-            ('assignment[automatic_peer_rewiews]',
-             auto_peer_reviews)
-        ] +
-            ([] if allowed_extensions is None
-             else [('assignment[allowed_extensions]',
-                    allowed_extensions)]) +
-            ([] if ext_tool_url is None
-             else [('assignment[external_tool_tag_attributes][url]',
-                    ext_tool_url),
-                   ('assignment[external_tool_tag_attributes][new_tab]',
-                    ext_tool_new_tab)])
-        ),
-        base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/assignments',
+        base, access_token
+    )
+    req.add_data('assignment[name]', name)
+    req.add_data('assignment[description]',
+                 convert_markdown(markdown_description, use_pandoc))
+    req.add_data('assignment[submission_types]', submission_types)
+    req.add_data('assignment[points_possible]',  points)
+    req.add_data('assignment[due_at]', due_at)
+    req.add_data('assignment[assignment_group_id]',  group_id)
+    req.add_data('assignment[published]', 1)
+    req.add_data('assignment[peer_reviews]', peer_reviews)
+    req.add_data('assignment[automatic_peer_rewiews]', auto_peer_reviews)
+    req.add_optional_data('assignment[allowed_extensions]', allowed_extensions)
+    if ext_tool_url is not None:
+        req.add_data(
+            'assignment[external_tool_tag_attributes][url]', ext_tool_url
+        )
+        req.add_data(
+            'assignment[external_tool_tag_attributes][new_tab]',
+            ext_tool_new_tab
+        )
+
+    return req.submit()
 
 
 def course_settings_set(course, settings, access_token=None, base=None):
@@ -562,13 +768,13 @@ def course_settings_set(course, settings, access_token=None, base=None):
             "Update a Course" API request
     """
 
-    return contact_server(
-        requests.put,
-        'api/v1/courses/{}'.format(course),
-        {
-            "course[{}]".format(k): v for k, v in settings.items()
-        },
-        base, access_token)
+    req = RequestWithData(
+        put_to_json, f'api/v1/courses/{course}', base, access_token
+    )
+    for k, v in settings.items():
+        req.add_data(f"course[{k}]", v)
+
+    return req.submit()
 
 
 def create_redirect_tool(
@@ -586,24 +792,28 @@ def create_redirect_tool(
         base: base url of canvas server
     """
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/external_tools'.format(course),
-                          {
-                              'name': 'Redirect to ' + text,
-                              'privacy_level': 'Anonymous',
-                              'consumer_key': 'N/A',
-                              'shared_secret': 'hjkl',
-                              'url': 'https://www.edu-apps.org/redirect',
-                              'text': text,
-                              'custom_fields[url]': url,
-                              'custom_fields[new_tab]': (1 if new_tab else 0),
-                              'not_selectable': True,
-                              'course_navigation[enabled]': True,
-                              'course_navigation[text]': text,
-                              'course_navigation[default]': default,
-                              'description': "Redirects to " + url
-                          },
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/external_tools',
+        base, access_token
+    )
+    req.add_data_dict(
+        {
+            'name': 'Redirect to ' + text,
+            'privacy_level': 'Anonymous',
+            'consumer_key': 'N/A',
+            'shared_secret': 'hjkl',
+            'url': 'https://www.edu-apps.org/redirect',
+            'text': text,
+            'custom_fields[url]': url,
+            'custom_fields[new_tab]': (1 if new_tab else 0),
+            'not_selectable': True,
+            'course_navigation[enabled]': True,
+            'course_navigation[text]': text,
+            'course_navigation[default]': default,
+            'description': "Redirects to " + url
+        })
+
+    return req.submit()
 
 
 def list_files(course, pattern, folder=None,
@@ -618,10 +828,12 @@ def list_files(course, pattern, folder=None,
         base: base url of canvas server
     """
 
-    return contact_server(get_all_pages,
-                          'api/v1/courses/{}/files'.format(course),
-                          {'search_term': pattern},
-                          base, access_token)
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/files', base, access_token
+    )
+    req.add_param('search_term', pattern)
+
+    return req.submit()
 
 
 def upload_file_to_course(course, local_file, upload_path, remote_name=None,
@@ -645,28 +857,21 @@ def upload_file_to_course(course, local_file, upload_path, remote_name=None,
         base: base url of canvas server
     """
 
-    response = contact_server(
-        requests.post,
-        'api/v1/courses/{}/files'.format(course),
-        data=dict(
-            [
-                ('name', remote_name if remote_name is not None
-                 else basename(local_file)),
-                ('size', getsize(local_file)),
-                ('parent_folder_path', upload_path),
-                ('on_duplicate', 'overwrite' if overwrite
-                 else 'rename')
-            ] + ([('content_type', content_type)]
-                 if content_type is not None else [])),
-        base=base, access_token=access_token)
-    response.raise_for_status()
+    if remote_name is None:
+        remote_name = basename(local_file)
 
-    upload_url = response.json()["upload_url"]
-    upload_params = response.json()["upload_params"]
+    req = RequestWithData(
+        upload_file, f'api/v1/courses/{course}/files',
+        base=base, access_token=access_token
+    )
+    req.add_data('local_file', local_file)
+    req.add_data('name', remote_name)
+    req.add_data('size', getsize(local_file))
+    req.add_data('parent_folder_path', upload_path)
+    req.add_data('on_duplicate', 'overwrite' if overwrite else 'rename')
+    req.add_optional_data('content_type', content_type)
 
-    with open(local_file, 'rb') as file:
-        return requests.post(
-            upload_url, data=upload_params, files={'file': file})
+    return req.submit()
 
 
 def import_qti_quiz(course, qti_file, access_token=None, base=None):
@@ -683,34 +888,29 @@ def import_qti_quiz(course, qti_file, access_token=None, base=None):
         base: base url of canvas server
 
     Returns:
-        Response with the migration info
+        Json of the migration info
     """
 
-    response = contact_server(requests.post,
-                              'api/v1/courses/{}/content_migrations'.format(
-                                  course),
-                              data=dict(
-                                  [
-                                      ('migration_type', 'qti_converter'),
-                                      ('pre_attachment[name]',
-                                       basename(qti_file)),
-                                      ('pre_attachment[size]',
-                                       getsize(qti_file))
-                                  ]),
-                              base=base, access_token=access_token)
-    response.raise_for_status()
+    req = RequestWithData(
+        upload_file, f'api/v1/courses/{course}/content_migrations',
+        base=base, access_token=access_token
+    )
+    req.add_data('local_file', qti_file)
+    req.add_data('migration_type', 'qti_converter')
+    req.add_data('pre_attachment[name]', basename(qti_file))
+    req.add_data('pre_attachment[size]', getsize(qti_file))
 
-    upload_url = response.json()['pre_attachment']['upload_url']
-    upload_params = response.json()['pre_attachment']['upload_params']
-    migration_id = response.json()['id']
+    res = req.submit()
 
-    with open(qti_file, 'rb') as file:
-        requests.post(upload_url, data=upload_params, files={'file': file})
+    migration_id = res['init']['id']
 
-    return contact_server(requests.get,
-                          "/api/v1/courses/{}/content_migrations/{}".format(
-                              course, migration_id
-                          ))
+    req = Request(
+        get_to_json,
+        f"/api/v1/courses/{course}/content_migrations/{migration_id}",
+        base=base, access_token=access_token
+    )
+
+    return req.submit()
 
 
 def get_list_of_courses(access_token=None, base=None):
@@ -722,8 +922,9 @@ def get_list_of_courses(access_token=None, base=None):
         base: base url of canvas server
     """
 
-    return contact_server(get_all_pages, 'api/v1/courses', {},
-                          base, access_token)
+    req = Request(get_all_pages, 'api/v1/courses', {}, base, access_token)
+
+    return req.submit()
 
 
 def get_students(course, base=None, access_token=None):
@@ -735,10 +936,12 @@ def get_students(course, base=None, access_token=None):
     Returns a list of dicts, one for each student
     """
 
-    return contact_server(get_all_pages,
-                          'api/v1/courses/{}/users'.format(course),
-                          {'enrollment_type': 'student'},
-                          base, access_token)
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/users', base, access_token
+    )
+    req.add_param('enrollment_type', 'student')
+
+    return req.submit()
 
 
 def find_user_by_login_id(login_id, base=None, access_token=None):
@@ -751,10 +954,12 @@ def find_user_by_login_id(login_id, base=None, access_token=None):
     Returns a request result
     """
 
-    return contact_server(requests.get,
-                          "/api/v1/users/sis_login_id:{}/profile".format(
-                              login_id),
-                          base, access_token)
+    req = Request(
+        get_to_json, f"/api/v1/users/sis_login_id:{login_id}/profile",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def enroll_user_by_login_id(course, login_id, base=None, access_token=None):
@@ -768,23 +973,24 @@ def enroll_user_by_login_id(course, login_id, base=None, access_token=None):
     Returns a request result
     """
 
-    resp = find_user_by_login_id(login_id, base, access_token)
+    json1 = find_user_by_login_id(login_id, base, access_token)
 
-    if resp.status_code != 200:
-        return resp
+    if 'Error' in json1:
+        return {**json1, "msg": "HTTP error"}
 
-    json = resp.json()
-
-    if "login_id" in json and json["login_id"] == login_id and "id" in json:
-        id = resp.json()['id']
+    if "login_id" in json1 and json1["login_id"] == login_id and "id" in json1:
+        id = json1['id']
     else:
-        return resp
+        return {"Error": 1, "msg": "Could not find user", "json": json1}
 
-    return contact_server(requests.post,
-                          'api/v1/courses/{}/enrollments'.format(course),
-                          {'enrollment[user_id]': id,
-                           'enrollment[enrollment_state]': 'active'},
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f'api/v1/courses/{course}/enrollments',
+        base, access_token
+    )
+    req.add_data('enrollment[user_id]', id)
+    req.add_data('enrollment[enrollment_state]', 'active')
+
+    return req.submit()
 
 
 def get_enrollments(course, base=None, access_token=None):
@@ -796,10 +1002,12 @@ def get_enrollments(course, base=None, access_token=None):
     Returns a list of dicts, one for each enrollment
     """
 
-    return contact_server(get_all_pages,
-                          'api/v1/courses/{}/enrollments'.format(course),
-                          {},
-                          base, access_token)
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/enrollments',
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def enrollment_stop(
@@ -815,11 +1023,13 @@ def enrollment_stop(
     Returns a request result
     """
 
-    return contact_server(requests.delete,
-                          'api/v1/courses/{}/enrollments/{}'.format(
-                              course, user_id),
-                          {"task": task},
-                          base, access_token)
+    req = Request(
+        delete_to_json, f'api/v1/courses/{course}/enrollments/{user_id}',
+        base, access_token
+    )
+    req.add_param("task", task)
+
+    return req.submit()
 
 
 def create_appointment_group(course_list, title, description, location,
@@ -846,27 +1056,27 @@ def create_appointment_group(course_list, title, description, location,
         private: participants cannot see each others names
     """
 
-    return contact_server(
-        requests.post, "/api/v1/appointment_groups",
-        dict([
-            ('appointment_group[context_codes][]',
-             ['course_{}'.format(id) for id in course_list]),
-            ('appointment_group[title]', title),
-            ('appointment_group[description]', description),
-            ('appointment_group[location_name]', location),
-            ('appointment_group[participants_per_appointment]',
-             max_part),
-            ('appointment_group[max_appointments_per_participant]',
-             max_per_part),
-            ('appointment_group[min_appointments_per_participant]',
-             min_per_part),
-            ('appointment_group[participant_visibility]',
-             'private' if private else 'protected'),
-            ('appointment_group[publish]', publish)] +
-            [('appointment_group[new_appointments][{}][]'.format(i+1),
-              slot) for i, slot in enumerate(time_slots)]
-        ),
-        base, access_token)
+    req = RequestWithData(
+        post_to_json, "/api/v1/appointment_groups",
+        base, access_token
+    )
+    req.add_data('appointment_group[context_codes][]',
+                 [f'course_{id}' for id in course_list])
+    req.add_data('appointment_group[title]', title)
+    req.add_data('appointment_group[description]', description)
+    req.add_data('appointment_group[location_name]', location)
+    req.add_data('appointment_group[participants_per_appointment]', max_part)
+    req.add_data('appointment_group[max_appointments_per_participant]',
+                 max_per_part)
+    req.add_data('appointment_group[min_appointments_per_participant]',
+                 min_per_part)
+    req.add_data('appointment_group[participant_visibility]',
+                 'private' if private else 'protected')
+    req.add_data('appointment_group[publish]', publish)
+    for i, slot in enumerate(time_slots):
+        req.add_data(f'appointment_group[new_appointments][{i+1}][]', slot)
+
+    return req.submit()
 
 
 def get_group_categories(course, base=None, access_token=None):
@@ -878,9 +1088,12 @@ def get_group_categories(course, base=None, access_token=None):
     Returns a list of dicts, one for each category
     """
 
-    return contact_server(get_all_pages,
-                          'api/v1/courses/{}/group_categories'.format(course),
-                          base, access_token)
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/group_categories',
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_groups(course, category=None, base=None, access_token=None):
@@ -897,13 +1110,16 @@ def get_groups(course, category=None, base=None, access_token=None):
     """
 
     if category is None:
-        api = 'api/v1/courses/{}/groups'.format(course)
+        api = f'api/v1/courses/{course}/groups'
     else:
-        api = 'api/v1/group_categories/{}/groups'.format(category)
+        api = f'api/v1/group_categories/{category}/groups'
 
-    return contact_server(get_all_pages,
-                          api,
-                          base, access_token)
+    req = Request(
+        get_all_pages, api,
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_group_members(group, base=None, access_token=None):
@@ -919,9 +1135,12 @@ def get_group_members(group, base=None, access_token=None):
         a list of users
     """
 
-    return contact_server(get_all_pages,
-                          "/api/v1/groups/{}/users".format(group),
-                          base, access_token)
+    req = Request(
+        get_all_pages, f"/api/v1/groups/{group}/users",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_assignments(course, search=None, bucket=None, base=None,
@@ -943,14 +1162,17 @@ def get_assignments(course, search=None, bucket=None, base=None,
         list of assignments
     """
 
-    return contact_server(
-        get_all_pages,
-        "/api/v1/courses/{}/assignments".format(course),
-        None if (search is None and bucket is None) else
-        dict(([] if search is None else [('search_term', search)]) +
-             ([] if bucket is None else [('bucket', bucket)])),
-        base, access_token)
+    req = Request(
+        get_all_pages, f"/api/v1/courses/{course}/assignments",
+        base, access_token
+    )
+    req.add_optional_param('search_term', search)
+    req.add_optional_param('bucket', bucket)
 
+    return req.submit()
+
+
+# TODO: This will need to be simplified
 
 def get_submissions(course, assignment=None, student=None, assignments=None,
                     students=None, grouped=True, base=None, access_token=None):
@@ -974,26 +1196,65 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
     Returns a list of submissions.
     """
 
-    data = None
-    if student is None:
-        if assignment is None:
-            data = dict(
-                [('student_ids[]',
-                  "all" if students is None else ','.join(str(id) for id
-                                                          in students))] +
-                ([] if assignments is None else ['assignments_ids[]',
-                                                 ','.join(str(id) for id in
-                                                          assignments)]) +
-                [('grouped', 1 if grouped else 0)])
-            api = "/api/v1/courses/{}/students/submissions".format(course)
-        else:
-            api = "/api/v1/courses/{}/assignments/{}/submissions".format(
-                course, assignment)
-    else:
-        api = "/api/v1/courses/{}/assignments/{}/submissions/{}".format(
-            course, assignment, student)
+    if student is not None and isinstance(students, list):
+        if student not in students:
+            students += [student]
+        student = None
 
-    return contact_server(get_all_pages, api, data, base, access_token)
+    # Now at least one of student and students is None
+
+    if assignment is not None and isinstance(assignments, list):
+        if assignment not in assignments:
+            assignments += [assignment]
+        assignment = None
+
+    # Now at least one of assignment and assignments is None
+
+    # There are three API points:
+    #  - single assignment for single student
+    #  - single assignment, all students
+    #  - selected (or all) assignments for selected (or all) students
+
+    api = None
+    if assignment is not None:  # Single assignment
+        if student is not None:    # and single student
+            api = f"/api/v1/courses/{course}"
+            f"/assignments/{assignment}"
+            f"/submissions/{student}"
+        elif students is None:     # and all students
+            api = f"/api/v1/courses/{course}"
+            f"/assignments/{assignment}/submissions"
+        else:                      # and multiple students
+            assignments = [assignment]
+            assignment = None
+
+        if api is not None:
+            req = Request(
+                get_all_pages, api,
+                base, access_token
+            )
+            return req.submit()
+
+    if student is not None:
+        students = [student]
+        student = None
+
+    student_list = "all" if students is None else ','.join(
+        str(id) for id in students
+    )
+    assignment_list = None if assignments is None else ','.join(
+        str(id) for id in assignments
+    )
+
+    req = Request(
+        get_all_pages, f"/api/v1/courses/{course}/students/submissions",
+        base, access_token
+    )
+    req.add_param('grouped', 1 if grouped else 0)
+    req.add_param('student_ids[]', student_list)
+    req.add_optional_param('assignment_ids[]', assignment_list)
+
+    return req.submit()
 
 
 def create_grade_data(grades, assignment_id=None):
@@ -1019,7 +1280,7 @@ def update_grades(course, assignment_id, grades, base=None, access_token=None):
     Parameters:
         course: the course ID
         assignment_id: the ID of the assignment
-        grades: a dict with student grade in the form {student_id: grade}
+        grades: a dict with student grades in the form {student_id: grade}
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
 
@@ -1028,12 +1289,16 @@ def update_grades(course, assignment_id, grades, base=None, access_token=None):
 
     data = create_grade_data(grades)
 
-    return contact_server(
+    req = RequestWithData(
         requests.post,
-        "/api/v1/courses/{}/assignments/{}/submissions/update_grades".format(
-            course, assignment_id),
-        data,
-        base, access_token)
+        f"/api/v1/courses/{course}"
+        f"/assignments/{assignment_id}"
+        "/submissions/update_grades",
+        base, access_token
+    )
+    req.add_data_dict(data)
+
+    return req.submit()
 
 
 def update_grade(course, assignment_id, student_id, grade, base=None,
@@ -1053,12 +1318,16 @@ def update_grade(course, assignment_id, student_id, grade, base=None,
     Returns something, hopefully
     """
 
-    return contact_server(
+    req = RequestWithData(
         requests.put,
-        "/api/v1/courses/{}/assignments/{}/submissions/{}".format(
-            course, assignment_id, student_id),
-        {"submission[posted_grade]": grade},
-        base, access_token)
+        f"/api/v1/courses/{course}"
+        f"/assignments/{assignment_id}"
+        f"/submissions/{student_id}",
+        base, access_token
+    )
+    req.add_data("submission[posted_grade]", grade)
+
+    return req.submit()
 
 
 def comment_on_submission(course, assignment_id, student_id, comment,
@@ -1077,44 +1346,16 @@ def comment_on_submission(course, assignment_id, student_id, comment,
     Returns something, hopefully
     """
 
-    return contact_server(
+    req = RequestWithData(
         requests.put,
-        "/api/v1/courses/{}/assignments/{}/submissions/{}".format(
-            course, assignment_id, student_id),
-        {"comment[text_comment]": comment},
-        base, access_token)
+        f"/api/v1/courses/{course}"
+        f"/assignments/{assignment_id}"
+        f"/submissions/{student_id}",
+        base, access_token
+    )
+    req.add_data("comment[text_comment]", comment)
 
-
-# This is really pretty much useless.  The custom columns are not shown to
-# students, they are only for some sort of teacher notes to themselves. Don't
-# see the point. I added this because I was hoping that I will be able to add
-# columns to gradebook with non-point-based grades for mastery based grading,
-# but Canvas is very "point oriented".
-def create_gradebook_column(course, title, position=0, hidden=False,
-                            read_only=False, base=None, access_token=None):
-    """
-    Create a custom gradebook column.
-
-    Parameters:
-        course: the course ID
-        title: the title of the column
-        position: the position of the column relative to other custom columns
-        hidden: not displayed in gradebook
-        read_only: if true, the column will not be editable in the browser UI
-        base: optional string, containing the base url of canvas server
-        access_token: optional access token, if different from global one
-
-    Returns something, hopefully
-    """
-
-    return contact_server(
-        requests.post,
-        "/api/v1/courses/{}/custom_gradebook_columns".format(course),
-        dict([('column[title]', title),
-              ('column[position]', position),
-              ('column[hidden]', 1 if hidden else 0),
-              ('column[read_only]', 1 if read_only else 0)]),
-        base, access_token)
+    return req.submit()
 
 
 def course(course):
@@ -1157,18 +1398,19 @@ def create_conversation(recipients, subject, body, force_new=False,
     Returns something, hopefully
     """
 
-    return contact_server(
-        requests.post,
-        "/api/v1/conversations",
-        dict([('recipients[]', recipients),
-              ('subject', subject),
-              ('body', body),
-              ('scope', 'unread'),
-              ('force_new', 1 if force_new else 0),
-              ('group_conversation', 1 if is_group_conversation else 0)] +
-             ([] if context is None else [('context_code', context)])
-             ),
-        base, access_token)
+    req = RequestWithData(
+        requests.post, "/api/v1/conversations",
+        base, access_token
+    )
+    req.add_data('recipients[]', recipients)
+    req.add_data('subject', subject)
+    req.add_data('body', body)
+    req.add_data('scope', 'unread')
+    req.add_data('force_new', 1 if force_new else 0)
+    req.add_data('group_conversation', 1 if is_group_conversation else 0)
+    req.add_optional_data('context_code', context)
+
+    return req.submit()
 
 
 def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
@@ -1184,10 +1426,12 @@ def get_quiz_submissions(course, quiz_id, base=None, access_token=None):
     Returns a list of submissions for the quiz
     """
 
-    return contact_server(requests.get,
-                          "/api/v1/courses/{}/quizzes/{}/submissions".format(
-                              course, quiz_id),
-                          base, access_token)
+    req = Request(
+        get_to_json, f"/api/v1/courses/{course}/quizzes/{quiz_id}/submissions",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_quiz_submission_answers(submission_id, base=None, access_token=None):
@@ -1203,10 +1447,12 @@ def get_quiz_submission_answers(submission_id, base=None, access_token=None):
     Returns a list of answers for the particular submission.
     """
 
-    return contact_server(requests.get,
-                          "/api/v1/quiz_submissions/{}/questions".format(
-                              submission_id),
-                          base, access_token)
+    req = Request(
+        get_to_json, f"/api/v1/quiz_submissions/{submission_id}/questions",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_favorite_courses(base=None, access_token=None):
@@ -1218,9 +1464,12 @@ def get_favorite_courses(base=None, access_token=None):
         access_token: optional access token, if different from global one
     """
 
-    return contact_server(get_all_pages,
-                          "/api/v1/users/self/favorites/courses",
-                          base, access_token)
+    req = Request(
+        get_all_pages, "/api/v1/users/self/favorites/courses",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def add_course_to_favorites(course, base=None, access_token=None):
@@ -1236,10 +1485,12 @@ def add_course_to_favorites(course, base=None, access_token=None):
     Returns a favorite.
     """
 
-    return contact_server(requests.post,
-                          "/api/v1/users/self/favorites/courses/{}".format(
-                              course),
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f"/api/v1/users/self/favorites/courses/{course}",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def remove_course_from_favorites(course, base=None, access_token=None):
@@ -1254,10 +1505,12 @@ def remove_course_from_favorites(course, base=None, access_token=None):
     Returns a favorite.
     """
 
-    return contact_server(requests.delete,
-                          "/api/v1/users/self/favorites/courses/{}".format(
-                              course),
-                          base, access_token)
+    req = Request(
+        delete_to_json, f"/api/v1/users/self/favorites/courses/{course}",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 def get_course_tabs(course, base=None, access_token=None):
@@ -1270,10 +1523,13 @@ def get_course_tabs(course, base=None, access_token=None):
         access_token: optional access token, if different from global one
     """
 
-    return contact_server(get_all_pages,
-                          "/api/v1/courses/{}/tabs".format(course),
-                          {'include[]': 'external'},
-                          base, access_token)
+    req = Request(
+        get_all_pages, f"/api/v1/courses/{course}/tabs",
+        base, access_token
+    )
+    req.add_param('include[]', 'external')
+
+    return req.submit()
 
 
 def update_course_tab(course, tab, position, hidden=False,
@@ -1290,10 +1546,14 @@ def update_course_tab(course, tab, position, hidden=False,
         access_token: optional access token, if different from global one
     """
 
-    return contact_server(requests.put,
-                          "/api/v1/courses/{}/tabs/{}".format(course, tab),
-                          {'hidden': hidden, 'position': position},
-                          base, access_token)
+    req = RequestWithData(
+        put_to_json, f"/api/v1/courses/{course}/tabs/{tab}",
+        base, access_token
+    )
+    req.add_data('hidden', hidden)
+    req.add_data('position', position)
+
+    return req.submit()
 
 
 def create_grading_standard(course, name, grades, cutoffs,
@@ -1314,20 +1574,15 @@ def create_grading_standard(course, name, grades, cutoffs,
     if len(cutoffs) == len(grades) - 1:
         cutoffs += [0]
 
-    # Canvas uses repeated header names and requires them in a specific order,
-    # name, value, name, value.  I couldn't find a way to do that with
-    # dictionaries, so now `contact_server` accepts lists of pairs as well.
+    req = RequestWithData(
+        post_to_json, f"/api/v1/courses/{course}/grading_standards",
+        base, access_token
+    )
+    req.add_data('title', name)
+    for g, c in zip(grades, cutoffs):
+        req.add_data('grading_scheme_entry[]', {'name': g, 'value': c})
 
-    params = [('title', name)]
-    for d in zip(grades, cutoffs):
-        params += [('grading_scheme_entry[][name]', d[0]),
-                   ('grading_scheme_entry[][value]', d[1])]
-
-    return contact_server(requests.post,
-                          "/api/v1/courses/{}/grading_standards".format(
-                              course),
-                          params,
-                          base, access_token)
+    return req.submit()
 
 # Modules:
 
@@ -1342,7 +1597,7 @@ def list_modules(course, items=False, details=False, search=None, student=None,
         items: a boolean, whether to include lists of items for each modules.
             Canvas may decide to ignore this if there are too many items.
         details: a boolean, whether to include additional details about items.
-            Required items to be true.
+            Only applies if `items` is true.
         search: search string to limit modules to those that match.
         student: include completion info for this student id.
         base: optional string, containing the base url of canvas server
@@ -1352,21 +1607,17 @@ def list_modules(course, items=False, details=False, search=None, student=None,
         List of modules
     """
 
+    req = Request(
+        get_all_pages, f"/api/v1/courses/{course}/modules",
+        base, access_token
+    )
     if items:
-        includes = [("include", ["items"] +
-                     ([] if not details else ["content_details"]))]
-    else:
-        includes = []
+        req.add_param('include',
+                      ["items"] + ([] if not details else ["content_details"]))
+    req.add_optional_param('search_term', search)
+    req.add_optional_param('student_id', student)
 
-    return contact_server(get_all_pages,
-                          "/api/v1/courses/{}/modules".format(course),
-                          None if (not items and not search and not student)
-                          else dict(includes +
-                                    ([] if search is None
-                                        else [('search_term', search)]) +
-                                    ([] if student is None
-                                        else [('student_id', student)])),
-                          base, access_token)
+    return req.submit()
 
 
 def show_module(course, module, items=False, details=False, student=None,
@@ -1389,20 +1640,16 @@ def show_module(course, module, items=False, details=False, student=None,
         Response with module info, when successful
     """
 
+    req = Request(
+        get_to_json, f"/api/v1/courses/{course}/modules/{module}",
+        base, access_token
+    )
     if items:
-        includes = [("include", ["items"] +
-                     ([] if not details else ["content_details"]))]
-    else:
-        includes = []
+        req.add_param('include',
+                      ["items"] + ([] if not details else ["content_details"]))
+    req.add_optional_param('student_id', student)
 
-    return contact_server(requests.get,
-                          "/api/v1/courses/{}/modules/{}".format(
-                              course, module),
-                          None if (not items and not student)
-                          else dict(includes +
-                                    ([] if student is None
-                                        else [('student_id', student)])),
-                          base, access_token)
+    return req.submit()
 
 
 def create_module(course, name, position, unlock_at=None, sequential=False,
@@ -1427,21 +1674,18 @@ def create_module(course, name, position, unlock_at=None, sequential=False,
         a response with the module, if successful
     """
 
-    return contact_server(requests.post,
-                          "/api/v1/courses/{}/modules".format(course),
-                          dict([("module[name]", name),
-                                ("module[position]", position),
-                                ("module[require_sequential_progress]",
-                                 sequential),
-                                ("module[publish_final_grade]",
-                                 publish_final_grade)] +
-                               ([] if unlock_at is None
-                                else [("module[unlock_at]", unlock_at)]) +
-                               ([] if prereqs is None
-                                else [("module[prerequisite_module_ids]",
-                                       prereqs)])
-                               ),
-                          base, access_token)
+    req = RequestWithData(
+        post_to_json, f"/api/v1/courses/{course}/modules",
+        base, access_token
+    )
+    req.add_data("module[name]", name)
+    req.add_data("module[position]", position)
+    req.add_data("module[require_sequential_progress]", sequential)
+    req.add_data("module[publish_final_grade]", publish_final_grade)
+    req.add_optional_data("module[unlock_at]", unlock_at)
+    req.add_optional_data("module[prerequisite_module_ids]", prereqs)
+
+    return req.submit()
 
 
 def delete_module(course, module, base=None, access_token=None):
@@ -1458,18 +1702,18 @@ def delete_module(course, module, base=None, access_token=None):
         Response with module info, when successful
     """
 
-    return contact_server(requests.delete,
-                          "/api/v1/courses/{}/modules/{}".format(
-                              course, module),
-                          None, base, access_token)
+    req = Request(
+        delete_to_json, f"/api/v1/courses/{course}/modules/{module}",
+        base, access_token
+    )
 
+    return req.submit()
 
-# Module items
 
 def list_module_items(course, module, details=False, search=None, student=None,
                       base=None, access_token=None):
     """
-    Lists modules in a course.
+    Lists items in a module.
 
     Parameters:
         course: the course id
@@ -1484,17 +1728,16 @@ def list_module_items(course, module, details=False, search=None, student=None,
         List of items
     """
 
-    return contact_server(get_all_pages,
-                          "/api/v1/courses/{}/modules/{}/items".format(
-                              course, module),
-                          None if (not details and not search and not student)
-                          else dict(([] if details is None
-                                     else [('include', ["content_details"])]) +
-                                    ([] if search is None
-                                        else [('search_term', search)]) +
-                                    ([] if student is None
-                                        else [('student_id', student)])),
-                          base, access_token)
+    req = Request(
+        get_all_pages, f"/api/v1/courses/{course}/modules/{module}/items",
+        base, access_token
+    )
+    if details:
+        req.add_param('include', ["content_details"])
+    req.add_optional_param('search_term', search)
+    req.add_optional_param('student_id', student)
+
+    return req.submit()
 
 
 def show_module_item(course, module, item, details=False, student=None,
@@ -1513,20 +1756,18 @@ def show_module_item(course, module, item, details=False, student=None,
         access_token: optional access token, if different from global one
 
     Returns:
-        Response with item info, when successful
+        Json with item info, when successful
     """
 
-    return contact_server(
+    req = Request(
         requests.get,
-        "/api/v1/courses/{}/modules/{}/items/{}".format(course,
-                                                        module,
-                                                        item),
-        None if (not details and not student)
-        else dict(([] if details is None
-                   else [('include', ["content_details"])]) +
-                  ([] if student is None
-                   else [('student_id', student)])),
-        base, access_token)
+        f"/api/v1/courses/{course}/modules/{module}/items/{item}",
+        base, access_token
+    )
+    req.add_optional_param('include', ["content_details"])
+    req.add_optional_param('student_id', student)
+
+    return req.submit()
 
 
 def create_module_item(course, module, title, position, itemtype, indent=0,
@@ -1560,24 +1801,20 @@ def create_module_item(course, module, title, position, itemtype, indent=0,
     # Some combinations are required while other are ignored.  Do not sort the
     # mess right now and trust that caller knows what they are doing.
 
-    return contact_server(
-        requests.post,
-        "/api/v1/courses/{}/modules/{}/items".format(course,
-                                                     module),
-        dict([("module_item[title]", title),
-              ("module_item[type]", itemtype),
-              ("module_item[position]", position),
-              ("module_item[indent]", indent),
-              ("module_item[new_tab]", (1 if new_tab else 0))
-              ] +
-             ([] if content is None
-              else [("module_item[content_id]", content)]) +
-             ([] if page_url is None
-              else [("module_item[page_url]", page_url)]) +
-             ([] if external_url is None
-              else [("module_item[external_url]", external_url)])
-             ),
-        base, access_token)
+    req = RequestWithData(
+        requests.post, f"/api/v1/courses/{course}/modules/{module}/items",
+        base, access_token
+    )
+    req.add_data("module_item[title]", title)
+    req.add_data("module_item[type]", itemtype)
+    req.add_data("module_item[position]", position)
+    req.add_data("module_item[indent]", indent)
+    req.add_data("module_item[new_tab]", (1 if new_tab else 0))
+    req.add_optional_data("module_item[content_id]", content)
+    req.add_optional_data("module_item[page_url]", page_url)
+    req.add_optional_data("module_item[external_url]", external_url)
+
+    return req.submit()
 
 
 def delete_module_item(course, module, item, base=None, access_token=None):
@@ -1595,12 +1832,13 @@ def delete_module_item(course, module, item, base=None, access_token=None):
         Response with item info, when successful
     """
 
-    return contact_server(
+    req = Request(
         requests.delete,
-        "/api/v1/courses/{}/modules/{}/items/{}".format(course,
-                                                        module,
-                                                        item),
-        None, base, access_token)
+        f"/api/v1/courses/{course}/modules/{module}/items/{item}",
+        base, access_token
+    )
+
+    return req.submit()
 
 
 # External tools API.  The whole external tools stuff is complicated and messy,
@@ -1621,20 +1859,28 @@ def create_external_tool(course, name, privacy_level, key, secret,
         url: the url to match links against
         domain: the domain to match links against
             (exactly one of url and domain must be set.  If both are set, url
-             is used. If none is set, strange things may happen.)
+             is used. If none is set, ValueError is raised.)
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
     """
 
-    return contact_server(requests.post,
-                          "/api/v1/courses/{}/external_tools".format(course),
-                          dict([("name", name),
-                                ("privacy_level", privacy_level),
-                                ("consumer_key", key),
-                                ("shared_secret", secret),
-                                ("domain", domain)
-                                if url is None else ("url", url)]),
-                          base, access_token)
+    if url is None and domain is None:
+        raise ValueError("One of url and domain must be given.")
+
+    req = RequestWithData(
+        post_to_json, f"/api/v1/courses/{course}/external_tools",
+        base, access_token
+    )
+    req.add_data("name", name)
+    req.add_data("privacy_level", privacy_level)
+    req.add_data("consumer_key", key)
+    req.add_data("shared_secret", secret)
+    if url is None:
+        req.add_data("domain", domain)
+    else:
+        req.add_data("url", url)
+
+    return req.submit()
 
 # Rubrics.  Rubrics in Canvas are a mess, and I do not understand them, but
 # what's below seems to work.  It uses a dict describing a rubric that looks
@@ -1722,7 +1968,7 @@ def criterion_to_data(criterion, number, data=None):
             number)] = criterion['points']
         data['rubric[criteria][{}][ratings][1][description]'.format(
             number)] = "No Points"
-        data['rubric[criteria][{}][ratings][1][points]'.format(number)] = 0
+        data[f'rubric[criteria][{number}][ratings][1][points]'] = 0
 
     return data
 
@@ -1775,10 +2021,13 @@ def create_rubric_for_assignment(course, assignment, rubric,
         whatever it is that Canvas sends back
     """
 
-    return contact_server(requests.post,
-                          "/api/v1/courses/{}/rubrics".format(course),
-                          data=rubric_to_data(assignment, rubric, comments)
-                          )
+    req = RequestWithData(
+        post_to_json, f"/api/v1/courses/{course}/rubrics",
+        base, access_token
+    )
+    req.add_data_dict(rubric_to_data(assignment, rubric, comments))
+
+    return req.submit()
 
 
 def add_criterion_to_rubric(course, rubricid, criterion, number,
@@ -1798,8 +2047,10 @@ def add_criterion_to_rubric(course, rubricid, criterion, number,
         whatever it is that Canvas sends back
     """
 
-    return contact_server(requests.put,
-                          "/api/v1/courses/{}/rubrics/{}".format(
-                              course, rubricid),
-                          data=criterion_to_data(criterion, number)
-                          )
+    req = RequestWithData(
+        put_to_json, f"/api/v1/courses/{course}/rubrics/{rubricid}",
+        base, access_token
+    )
+    req.add_data_dict(criterion_to_data(criterion, number))
+
+    return req.submit()
