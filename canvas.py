@@ -205,7 +205,7 @@ def get_to_json(url, params=None, headers=None):
         resp = requests.get(url, params=params, headers=headers)
         resp.raise_for_status()
     except HTTPError as err:
-        return {'Error': err.response.status_code}
+        return {'Error': err.response.status_code, 'URL': resp.url}
 
     return resp.json()
 
@@ -226,7 +226,7 @@ def delete_to_json(url, params=None, headers=None):
         resp = requests.delete(url, params=params, headers=headers)
         resp.raise_for_status()
     except HTTPError as err:
-        return {'Error': err.response.status_code}
+        return {'Error': err.response.status_code, 'URL': resp.url}
 
     return resp.json()
 
@@ -247,7 +247,7 @@ def put_to_json(url, params=None, data=None, headers=None):
         resp = requests.put(url, params=params, data=data, headers=headers)
         resp.raise_for_status()
     except HTTPError as err:
-        return {'Error': err.response.status_code}
+        return {'Error': err.response.status_code, 'URL': resp.url}
 
     return resp.json()
 
@@ -268,7 +268,7 @@ def post_to_json(url, params=None, data=None, headers=None):
         resp = requests.post(url, params=params, data=data, headers=headers)
         resp.raise_for_status()
     except HTTPError as err:
-        return {'Error': err.response.status_code}
+        return {'Error': err.response.status_code, 'URL': resp.url}
 
     return resp.json()
 
