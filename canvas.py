@@ -304,9 +304,13 @@ def upload_file(url, params=None, data=None, headers=None):
     upload_params = json1["upload_params"]
 
     with open(local_file, 'rb') as file:
-        json2 = post_to_json(
+        resp = requests.post(
             upload_url, data=upload_params, files={'file': file}
         )
+
+    resp.raise_for_status()
+
+    json2 = resp.json()
 
     return {'init': json1, 'upload': json2}
 
