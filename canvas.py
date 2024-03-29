@@ -6,10 +6,11 @@ Global parameters (most can also be changed on individual function calls):
     TOKEN: string, containing the user access token.
     THIS_YEAR: current year, for making class schedules
 """
-import requests
+from os.path import basename, expanduser, getsize
+
 import arrow
 import markdown
-from os.path import expanduser, getsize, basename
+import requests
 from requests.exceptions import HTTPError
 
 HAS_PANDOC = True
@@ -156,7 +157,6 @@ class RequestOrderedData(Request):
         return self.function(self.URL(), data=self.stuff["data"],
                              params=self.stuff["params"],
                              headers=self.stuff["headers"])
-
 
 
 def get_all_pages(orig_url, params=None, headers=None):
@@ -1316,7 +1316,7 @@ def update_grades(course, assignment_id, grades, base=None, access_token=None):
     data = create_grade_data(grades)
 
     req = RequestWithData(
-        requests.post,
+        post_to_json,
         f"/api/v1/courses/{course}"
         f"/assignments/{assignment_id}"
         "/submissions/update_grades",
@@ -1345,7 +1345,7 @@ def update_grade(course, assignment_id, student_id, grade, base=None,
     """
 
     req = RequestWithData(
-        requests.put,
+        put_to_json,
         f"/api/v1/courses/{course}"
         f"/assignments/{assignment_id}"
         f"/submissions/{student_id}",
@@ -1373,7 +1373,7 @@ def comment_on_submission(course, assignment_id, student_id, comment,
     """
 
     req = RequestWithData(
-        requests.put,
+        put_to_json,
         f"/api/v1/courses/{course}"
         f"/assignments/{assignment_id}"
         f"/submissions/{student_id}",
