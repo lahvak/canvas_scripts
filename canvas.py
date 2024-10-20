@@ -1265,12 +1265,11 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
         students = [student]
         student = None
 
-    student_list = "all" if students is None else ','.join(
-        str(id) for id in students
-    )
-    assignment_list = None if assignments is None else ','.join(
-        str(id) for id in assignments
-    )
+    student_list = "all" if students is None else students
+
+    # assignment_list = None if assignments is None else '&'.join(
+    #     str(id) for id in assignments
+    # )
 
     req = Request(
         get_all_pages, f"/api/v1/courses/{course}/students/submissions",
@@ -1278,7 +1277,7 @@ def get_submissions(course, assignment=None, student=None, assignments=None,
     )
     req.add_param('grouped', 1 if grouped else 0)
     req.add_param('student_ids[]', student_list)
-    req.add_optional_param('assignment_ids[]', assignment_list)
+    req.add_optional_param('assignment_ids[]', assignments)
 
     return req.submit()
 
