@@ -1,2 +1,0 @@
-arrow==1.3.0
-pypandoc==1.13
