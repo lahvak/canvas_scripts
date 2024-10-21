@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canvas_jhlavace"
+version = "0.1"
+authors = [
+  { name="Jan Hlavacek", email="jhlavace@svsu.edu" },
+]
+description = "Package to interact with the Canvas LMS API"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/lahvak/canvas_scripts"
+Issues = "https://github.com/lahvak/canvas_scripts/issues"
+
