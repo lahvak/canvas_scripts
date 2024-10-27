@@ -2136,3 +2136,24 @@ def list_conversations(scope=None, courses=None, groups=None, users=None,
     req.add_optional_param('filter[]', filter)
 
     return req.submit()
+
+
+def get_conversation(id, mark_as_read=False,
+                     base=None, access_token=None):
+    """
+    Get a single conversation.
+
+    Parameters:
+        id: The id of the conversation.
+        mark_as_read: mark the conversation as read.
+
+    Returns:
+        The conversation.
+    """
+
+    req = Request(
+        get_to_json, f"/api/v1/conversations/{id}", base, access_token)
+
+    req.add_param("auto_mark_as_read", mark_as_read)
+
+    return req.submit()
