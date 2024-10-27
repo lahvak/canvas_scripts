@@ -2080,3 +2080,59 @@ def add_criterion_to_rubric(course, rubricid, criterion, number,
     req.add_data_dict(criterion_to_data(criterion, number))
 
     return req.submit()
+
+
+def list_from_ids(ids, prefix):
+    """
+    Generate a list from ids.  Returns empty list if ids are empty or None.
+    Otherwise prepend the prefix followed by underscore before each id.  If id
+    is a single id rather than a list, returns a list with one element.
+    """
+
+    if ids is None:
+        return []
+
+    if not isinstance(ids, list):
+        return ["{}_{}".format(prefix, ids)]
+
+    return ["{}_{}".format(prefix, id) for id in ids]
+
+def list_conversations(scope=None, courses=None, groups=None, users=None,
+                       filter_conjunction=False,
+                       base=None, access_token=None):
+    """
+    Lists all conversation.
+
+    Parameters:
+        scope: 'unread', 'starred', 'archived'.  Default is all non-archived
+            messages.
+        courses: list of course IDs, or a single course ID.
+        groups: list of group IDs, or a single group ID.
+        users: list of user IDs, or a single user ID.
+        filter_conjunction: Use conjunction of all filter criteria. Ignored if
+            no filter specified.
+        base: optional string, containing the base url of canvas server
+        access_token: optional access token, if different from global one
+
+    Returns:
+        A list of conversations satisfying the scope and optional filter.
+    """
+
+    filter = (
+        list_from_ids(courses, "course") +
+        list_from_ids(groups, "group") +
+        list_from_ids(users, "user")
+    )
+
+    if not filter:
+        filter = None
+
+    req = Request(
+        get_all_pages,
+        "/api/v1/conversations/",
+        base, access_token
+    )
+    req.add_optional_param('scope', scope)
+    req.add_optional_param('filter[]', filter)
+
+    return req.submit()
