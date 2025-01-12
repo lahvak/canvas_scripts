@@ -951,6 +951,27 @@ def import_qti_quiz(course, qti_file, access_token=None, base=None):
     return req.submit()
 
 
+def list_course_quizzes(course, name=None, base=None, access_token=None):
+    """
+    List all the quizzes in the course with optional search term.
+    Parameters:
+        course: the course id
+        name: a (partial) title to match
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    req = Request(
+        get_all_pages,
+        f"/api/v1/courses/{course}/quizzes",
+        base, access_token
+    )
+
+    req.add_optional_param("search_term", name)
+
+    return req.submit()
+
+
 def get_list_of_courses(access_token=None, base=None):
     """
     Returns a list of current user's courses, as a list of json course data,
