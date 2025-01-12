@@ -43,6 +43,15 @@ def check_headers(headers):
         raise ValueError("Headers must contain authorization info.")
 
 
+def authorization_headers(access_token=None):
+    """
+    Creates a basic authorization headers.
+    """
+
+    token = TOKEN if access_token is None else access_token
+    return {'Authorization': f'Bearer {token}'}
+
+
 def add_item_to_possible_list(item_or_list, item):
     """
     If `item_or_list` is not list, returns `[item_or_list, item]`.
@@ -58,9 +67,8 @@ def add_item_to_possible_list(item_or_list, item):
 class RequestBase(object):
     def __init__(self, locashun, base=None, access_token=None):
         self.base = BASE_URL if base is None else base
-        self.token = TOKEN if access_token is None else access_token
         self.locashun = locashun
-        self.stuff = {"headers": {"Authorization": f"Bearer {self.token}"}}
+        self.stuff = {"headers": authorization_headers(access_token)}
 
     def URL(self):
         locashun = self.locashun
@@ -91,7 +99,7 @@ class RequestBase(object):
         if (
                 which_stuff not in self.stuff
                 or not isinstance(self.stuff[which_stuff], dict)
-                ):
+        ):
             self.stuff[which_stuff] = hash.copy()
         else:
             self.stuff[which_stuff].update(hash)
@@ -300,8 +308,12 @@ def upload_file(url, params=None, data=None, headers=None):
 
     json1 = resp.json()
 
-    upload_url = json1["upload_url"]
-    upload_params = json1["upload_params"]
+    if 'pre_attachment' in json1:
+        upload_url = json1['pre_attachment']["upload_url"]
+        upload_params = json1['pre_attachment']["upload_params"]
+    else:
+        upload_url = json1["upload_url"]
+        upload_params = json1["upload_params"]
 
     with open(local_file, 'rb') as file:
         resp = requests.post(
@@ -2096,6 +2108,7 @@ def list_from_ids(ids, prefix):
         return ["{}_{}".format(prefix, ids)]
 
     return ["{}_{}".format(prefix, id) for id in ids]
+
 
 def list_conversations(scope=None, courses=None, groups=None, users=None,
                        filter_conjunction=False,
