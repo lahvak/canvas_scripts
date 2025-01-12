@@ -972,7 +972,7 @@ def list_course_quizzes(course, name=None, base=None, access_token=None):
     return req.submit()
 
 
-def edit_quiz(course, quiz,
+def edit_quiz(course, quiz, notify=False,
               title=None, description=None, quiz_type=None, group=None,
               time_limit=None, shuffle_answers=None, hide_results=None,
               show_correct=None, show_correct_last_attempt=None,
@@ -988,6 +988,7 @@ def edit_quiz(course, quiz,
     Parameters:
         course: the course id
         quiz: an existing quiz id
+        notify: notify users about the change
         access_token: access token
         base: base url of canvas server
     """
@@ -998,7 +999,7 @@ def edit_quiz(course, quiz,
         base, access_token
     )
 
-    req.add_param("quiz[notify_of_update]", 0)
+    req.add_param("quiz[notify_of_update]", notify)
     req.add_optional_param("quiz[title]", title)
     req.add_optional_param("quiz[description]", description)
     req.add_optional_param("quiz[quiz_type]", quiz_type)
