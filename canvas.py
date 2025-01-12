@@ -972,6 +972,79 @@ def list_course_quizzes(course, name=None, base=None, access_token=None):
     return req.submit()
 
 
+def edit_quiz(course, quiz,
+              title=None, description=None, quiz_type=None, group=None,
+              time_limit=None, shuffle_answers=None, hide_results=None,
+              show_correct=None, show_correct_last_attempt=None,
+              show_correct_at=None, hide_correct_at=None,
+              allowed_attempts=None, scoring_policy=None,
+              one_at_a_time=None, cant_go_back=None, access_code=None,
+              ip_filter=None, due_at=None, lock_at=None, unlock_at=None,
+              published=None, one_time_results=None,
+              base=None, access_token=None):
+    """
+    Edit an existing quiz. Optional parameters should be specified only if they
+    are to be changed.
+    Parameters:
+        course: the course id
+        quiz: an existing quiz id
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    req = Request(
+        put_to_json,
+        f"/api/v1/courses/{course}/quizzes/{quiz}",
+        base, access_token
+    )
+
+    req.add_param("quiz[notify_of_update]", 0)
+    req.add_optional_param("quiz[title]", title)
+    req.add_optional_param("quiz[description]", description)
+    req.add_optional_param("quiz[quiz_type]", quiz_type)
+    req.add_optional_param("quiz[assignment_group_id]", group)
+    req.add_optional_param("quiz[time_limit]", time_limit)
+    req.add_optional_param("quiz[shuffle_answers]", shuffle_answers)
+    req.add_optional_param("quiz[hide_results]", hide_results)
+    req.add_optional_param("quiz[show_correct_answers]", show_correct)
+    req.add_optional_param("quiz[show_correct_answers_last_attempt]",
+                           show_correct_last_attempt)
+    req.add_optional_param("quiz[show_correct_answers_at]", show_correct_at)
+    req.add_optional_param("quiz[hide_correct_answers_at]", hide_correct_at)
+    req.add_optional_param("quiz[allowed_attempts]", allowed_attempts)
+    req.add_optional_param("quiz[scoring_policy]", scoring_policy)
+    req.add_optional_param("quiz[one_question_at_a_time]", one_at_a_time)
+    req.add_optional_param("quiz[cant_go_back]", cant_go_back)
+    req.add_optional_param("quiz[cant_go_back]", cant_go_back)
+    req.add_optional_param("quiz[access_code]", access_code)
+    req.add_optional_param("quiz[ip_filter]", ip_filter)
+    req.add_optional_param("quiz[due_at]", due_at)
+    req.add_optional_param("quiz[lock_at]", lock_at)
+    req.add_optional_param("quiz[unlock_at]", unlock_at)
+    req.add_optional_param("quiz[published]", published)
+    req.add_optional_param("quiz[one_time_results]", one_time_results)
+
+    return req.submit()
+
+
+def delete_quiz(course, quiz, access_token=None, base=None):
+    """
+    Deletes a single quiz from a course.
+    Parameters:
+        course: the course id
+        quiz: an existing quiz id
+        access_token: access token
+        base: base url of canvas server
+    """
+
+    req = Request(
+        delete_to_json, f"/api/v1/courses/{course}/quizzes/{quiz}",
+        base, access_token
+    )
+
+    req.submit()
+
+
 def get_list_of_courses(access_token=None, base=None):
     """
     Returns a list of current user's courses, as a list of json course data,
