@@ -613,7 +613,7 @@ def create_discussion(
     req.add_optional_data('position_after', position_after)
     if assignment:
         for param, val in assignment.items():
-            req.add_data(f"assignment[{param}]", val)
+            req.add_optional_data(f"assignment[{param}]", val)
 
     return req.submit()
 
