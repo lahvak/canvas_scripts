@@ -973,7 +973,8 @@ def list_course_quizzes(course, name=None, base=None, access_token=None):
 
 
 def edit_quiz(course, quiz, notify=False,
-              title=None, description=None, quiz_type=None, group=None,
+              title=None, markdown_description=None,
+              quiz_type=None, group=None,
               time_limit=None, shuffle_answers=None, hide_results=None,
               show_correct=None, show_correct_last_attempt=None,
               show_correct_at=None, hide_correct_at=None,
@@ -981,6 +982,7 @@ def edit_quiz(course, quiz, notify=False,
               one_at_a_time=None, cant_go_back=None, access_code=None,
               ip_filter=None, due_at=None, lock_at=None, unlock_at=None,
               published=None, one_time_results=None,
+              use_pandoc=True,
               base=None, access_token=None):
     """
     Edit an existing quiz. Optional parameters should be specified only if they
@@ -1001,7 +1003,8 @@ def edit_quiz(course, quiz, notify=False,
 
     req.add_param("quiz[notify_of_update]", notify)
     req.add_optional_param("quiz[title]", title)
-    req.add_optional_param("quiz[description]", description)
+    req.add_optional_param("quiz[description]",
+                           convert_markdown(markdown_description, use_pandoc))
     req.add_optional_param("quiz[quiz_type]", quiz_type)
     req.add_optional_param("quiz[assignment_group_id]", group)
     req.add_optional_param("quiz[time_limit]", time_limit)
