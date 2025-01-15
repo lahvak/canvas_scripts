@@ -562,6 +562,7 @@ def create_discussion(
         position_after=None,
         published=True, allow_rating=False, sort_by_rating=False,
         only_graders_can_rate=False,
+        assignment=None,
         podcast_enabled=False, podcast_student_posts=False,
         require_initial_post=False, pinned=False, group=None,
         use_pandoc=False,
@@ -578,6 +579,8 @@ def create_discussion(
         allow_rating: can post be rated
         sort_by_rating: sort posts by rating
         only_graders_can_rate: if true, only graders can rate (duh)
+        assignment: None or False if the discussion is not an assignment,
+            or a dictionary with assignment parameters.
         podcast_enabled: is there a podcast for the discussion
         podcast_student_posts: include student posts in podcast
         require_initial_post: do students have to post before commenting on
