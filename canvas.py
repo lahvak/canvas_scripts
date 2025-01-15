@@ -606,8 +606,11 @@ def create_discussion(
     req.add_data('podcast_has_student_posts', podcast_student_posts)
     req.add_data('require_initial_post', require_initial_post)
     req.add_data('pinned', pinned)
-    req.add_data_optional('group', group)
-    req.add_data_optional('position_after', position_after)
+    req.add_optional_data('group', group)
+    req.add_optional_data('position_after', position_after)
+    if assignment:
+        for param, val in assignment.items():
+            req.add_data(f"assignment[{param}]", val)
 
     return req.submit()
 
