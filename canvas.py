@@ -1104,12 +1104,16 @@ def find_user_by_login_id(login_id, base=None, access_token=None):
     return req.submit()
 
 
-def enroll_user_by_login_id(course, login_id, base=None, access_token=None):
+def enroll_user_by_login_id(
+        course, login_id, type=None, state=None,
+        base=None, access_token=None):
     """Enrolls a user with a given sis_login_id, if found. Returns user
     profile.
     Parameters:
         course: course ID
         login_id: user's sis_login_id
+        type: one of Student, Teacher, Ta, Observer, Designer
+        state: one of "active", "invited", "inactive". Defaults to "active"
         base: optional string, containing the base url of canvas server
         access_token: optional access token, if different from global one
     Returns a request result
@@ -1125,12 +1129,19 @@ def enroll_user_by_login_id(course, login_id, base=None, access_token=None):
     else:
         return {"Error": 1, "msg": "Could not find user", "json": json1}
 
+    if type is not None:
+        type += "Enrollment"
+
+    if state is None:
+        state = "active"
+
     req = RequestWithData(
         post_to_json, f'api/v1/courses/{course}/enrollments',
         base, access_token
     )
     req.add_data('enrollment[user_id]', id)
-    req.add_data('enrollment[enrollment_state]', 'active')
+    req.add_data('enrollment[enrollment_state]', state)
+    req.add_optional_data('enrollment[type]', type)
 
     return req.submit()
 
