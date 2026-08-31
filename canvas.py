@@ -752,6 +752,28 @@ def update_page_from_markdown(
     return req.submit()
 
 
+def list_pages(course, pattern, access_token=None, base=None):
+    """
+    Lists pages with titles matching pattern
+    Parameters:
+        course: the course id
+        pattern: the pattern to match
+        access_token: access token
+        base: base url of canvas server
+    Returns: list of matching pages, in descending order of update time (newest
+        first)
+    """
+
+    req = Request(
+        get_all_pages, f'api/v1/courses/{course}/pages', base, access_token
+    )
+    req.add_param('search_term', pattern)
+    req.add_param('sort', 'updated_at')
+    req.add_param('order', 'desc')
+
+    return req.submit()
+
+
 def get_assignment_groups(course, access_token=None, base=None):
     """
     Gets a list of all assignment groups for a course.
@@ -1212,7 +1234,7 @@ def get_list_of_courses(access_token=None, base=None):
         base: base url of canvas server
     """
 
-    req = Request(get_all_pages, 'api/v1/courses', {}, base, access_token)
+    req = Request(get_all_pages, 'api/v1/courses', base, access_token)
 
     return req.submit()
 
